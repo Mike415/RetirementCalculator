@@ -1,0 +1,289 @@
+/**
+ * Budget Periods — Life-stage budget editor
+ * Design: "Horizon" — Warm Modernist Financial Planning
+ */
+
+import { usePlanner } from "@/contexts/PlannerContext";
+import { formatCurrency } from "@/lib/format";
+import { getBudgetMonthlyTotal } from "@/lib/projection";
+import { cn } from "@/lib/utils";
+import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+
+const PERIOD_COLORS = [
+  "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "bg-blue-100 text-blue-800 border-blue-200",
+  "bg-violet-100 text-violet-800 border-violet-200",
+  "bg-orange-100 text-orange-800 border-orange-200",
+  "bg-rose-100 text-rose-800 border-rose-200",
+  "bg-teal-100 text-teal-800 border-teal-200",
+];
+
+export default function Budget() {
+  const { inputs, updateInput } = usePlanner();
+  const { budgetPeriods } = inputs;
+  const [activePeriodIdx, setActivePeriodIdx] = useState(0);
+
+  const activePeriod = budgetPeriods[activePeriodIdx];
+  const monthlyTotal = getBudgetMonthlyTotal(activePeriod, activePeriodIdx);
+  const yearlyTotal = monthlyTotal * 12;
+
+  const updateItemAmount = (itemIdx: number, periodIdx: number, value: number) => {
+    const newPeriods = budgetPeriods.map((period, pi) => ({
+      ...period,
+      items: period.items.map((item, ii) => {
+        if (ii !== itemIdx) return item;
+        const newAmounts = [...item.amounts];
+        newAmounts[periodIdx] = value;
+        return { ...item, amounts: newAmounts };
+      }),
+    }));
+    updateInput("budgetPeriods", newPeriods);
+  };
+
+  const updateItemLabel = (itemIdx: number, label: string) => {
+    const newPeriods = budgetPeriods.map((period) => ({
+      ...period,
+      items: period.items.map((item, ii) =>
+        ii === itemIdx ? { ...item, label } : item
+      ),
+    }));
+    updateInput("budgetPeriods", newPeriods);
+  };
+
+  const addItem = () => {
+    const newPeriods = budgetPeriods.map((period) => ({
+      ...period,
+      items: [
+        ...period.items,
+        { label: "New Expense", amounts: new Array(budgetPeriods.length).fill(0) },
+      ],
+    }));
+    updateInput("budgetPeriods", newPeriods);
+  };
+
+  const removeItem = (itemIdx: number) => {
+    const newPeriods = budgetPeriods.map((period) => ({
+      ...period,
+      items: period.items.filter((_, ii) => ii !== itemIdx),
+    }));
+    updateInput("budgetPeriods", newPeriods);
+  };
+
+  const updatePeriodName = (idx: number, name: string) => {
+    const newPeriods = budgetPeriods.map((p, i) => (i === idx ? { ...p, name } : p));
+    updateInput("budgetPeriods", newPeriods);
+  };
+
+  const updatePeriodStartAge = (idx: number, age: number) => {
+    const newPeriods = budgetPeriods.map((p, i) => (i === idx ? { ...p, startAge: age } : p));
+    updateInput("budgetPeriods", newPeriods);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-800">Budget Periods</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Define monthly expenses for each life stage. Budgets automatically switch at the
+          configured start ages and are inflation-adjusted in projections.
+        </p>
+      </div>
+
+      {/* Period tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {budgetPeriods.map((period, idx) => {
+          const total = getBudgetMonthlyTotal(period, idx);
+          return (
+            <button
+              key={idx}
+              onClick={() => setActivePeriodIdx(idx)}
+              className={cn(
+                "flex flex-col items-start px-4 py-2.5 rounded-xl border text-left transition-all duration-150",
+                activePeriodIdx === idx
+                  ? "bg-[#1B4332] text-white border-[#1B4332] shadow-sm"
+                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+              )}
+            >
+              <span className="text-xs font-bold">{period.name}</span>
+              <span
+                className={cn(
+                  "text-[10px] tabular-nums mt-0.5",
+                  activePeriodIdx === idx ? "text-white/60" : "text-slate-400"
+                )}
+              >
+                Age {period.startAge}+ • {formatCurrency(total)}/mo
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Active period editor */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        {/* Period header */}
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="flex-1 max-w-xs">
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Period Name
+                </label>
+                <input
+                  type="text"
+                  value={activePeriod.name}
+                  onChange={(e) => updatePeriodName(activePeriodIdx, e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+                />
+              </div>
+              <div className="w-28">
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                  Start Age
+                </label>
+                <input
+                  type="number"
+                  value={activePeriod.startAge}
+                  onChange={(e) =>
+                    updatePeriodStartAge(activePeriodIdx, parseInt(e.target.value, 10) || 0)
+                  }
+                  className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+                />
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Total</p>
+              <p className="text-xl font-bold text-[#1B4332] tabular-nums">
+                {formatCurrency(monthlyTotal)}
+              </p>
+              <p className="text-xs text-slate-400 tabular-nums">
+                {formatCurrency(yearlyTotal)}/yr
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Line items */}
+        <div className="divide-y divide-slate-50">
+          {/* Column headers */}
+          <div className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
+            style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}>
+            <span>Expense</span>
+            {budgetPeriods.map((p, i) => (
+              <span key={i} className="text-center truncate px-1">{p.name.split(" ")[0]}</span>
+            ))}
+            <span></span>
+          </div>
+
+          {activePeriod.items.map((item, itemIdx) => (
+            <div
+              key={itemIdx}
+              className="grid items-center px-6 py-2 hover:bg-slate-50/50 transition-colors"
+              style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}
+            >
+              <input
+                type="text"
+                value={item.label}
+                onChange={(e) => updateItemLabel(itemIdx, e.target.value)}
+                className="text-sm text-slate-700 bg-transparent border-0 focus:outline-none focus:bg-white focus:border focus:border-slate-200 rounded px-1 py-0.5 -mx-1 w-full"
+              />
+              {budgetPeriods.map((_, periodIdx) => (
+                <div key={periodIdx} className="px-1">
+                  <input
+                    type="number"
+                    value={item.amounts[periodIdx] ?? 0}
+                    onChange={(e) =>
+                      updateItemAmount(
+                        itemIdx,
+                        periodIdx,
+                        parseFloat(e.target.value) || 0
+                      )
+                    }
+                    className={cn(
+                      "w-full text-xs text-right tabular-nums px-1.5 py-1 rounded border transition-colors",
+                      periodIdx === activePeriodIdx
+                        ? "bg-[#1B4332]/5 border-[#1B4332]/20 text-slate-800 font-semibold"
+                        : "bg-transparent border-transparent text-slate-400 focus:bg-white focus:border-slate-200"
+                    )}
+                  />
+                </div>
+              ))}
+              <button
+                onClick={() => removeItem(itemIdx)}
+                className="flex items-center justify-center w-7 h-7 rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+
+          {/* Totals row */}
+          <div
+            className="grid items-center px-6 py-3 bg-slate-50 font-semibold"
+            style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}
+          >
+            <span className="text-xs text-slate-600 uppercase tracking-wide">Monthly Total</span>
+            {budgetPeriods.map((period, periodIdx) => {
+              const total = getBudgetMonthlyTotal(period, periodIdx);
+              return (
+                <div key={periodIdx} className="px-1 text-right">
+                  <span
+                    className={cn(
+                      "text-xs tabular-nums font-bold",
+                      periodIdx === activePeriodIdx ? "text-[#1B4332]" : "text-slate-400"
+                    )}
+                  >
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+              );
+            })}
+            <span></span>
+          </div>
+        </div>
+
+        {/* Add item */}
+        <div className="px-6 py-3 border-t border-slate-100">
+          <button
+            onClick={addItem}
+            className="flex items-center gap-2 text-sm text-[#1B4332] font-medium hover:text-[#2D6A4F] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Expense Line
+          </button>
+        </div>
+      </div>
+
+      {/* All periods summary */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <h2 className="font-bold text-slate-800 mb-3">All Periods Summary</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {budgetPeriods.map((period, idx) => {
+            const total = getBudgetMonthlyTotal(period, idx);
+            return (
+              <div
+                key={idx}
+                className={cn(
+                  "rounded-lg border p-3 cursor-pointer transition-all",
+                  PERIOD_COLORS[idx % PERIOD_COLORS.length],
+                  activePeriodIdx === idx && "ring-2 ring-[#1B4332]"
+                )}
+                onClick={() => setActivePeriodIdx(idx)}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">
+                  Age {period.startAge}+
+                </p>
+                <p className="text-xs font-semibold mt-0.5 leading-tight">{period.name}</p>
+                <p className="text-sm font-bold tabular-nums mt-1.5">
+                  {formatCurrency(total)}/mo
+                </p>
+                <p className="text-[10px] opacity-60 tabular-nums">
+                  {formatCurrency(total * 12)}/yr
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
