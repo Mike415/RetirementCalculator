@@ -225,16 +225,16 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const nextInflFactor = Math.pow(1 + inflationRate, yearsFromStart + 1);
 
     // Annual expenses (when retired) — O column
-    // Spreadsheet: O[n] = PMT(mortgageRate/12, remainingMonths, currentLoan)*12
-    //              + extraMortgage*12 + propTax*(1+inf)^(retirementYears)
-    //              + (homeIns + budget*12) * (1+inf)^(nextYear)
+    // Remaining mortgage months at this point in time (used for both expenses and loan paydown)
+    const remainingMortgageMonths = Math.max(0, totalMortgageMonths - yearsFromStart * 12 - mortgageElapsedMonths);
+    // Monthly P&I payment based on current balance and remaining term
+    const monthlyMortgagePmt = remainingMortgageMonths > 0 && prevHomeLoan > 0
+      ? pmt(mortgageRate, remainingMortgageMonths, prevHomeLoan)
+      : 0;
+    const annualMortgagePmt = monthlyMortgagePmt * 12;
+    // Property taxes fixed at retirement-year inflation; other costs use current year
     const retirementYearsFromStart = retirementAge - currentAge;
     const retirementInflFactor = Math.pow(1 + inflationRate, retirementYearsFromStart);
-    // Remaining mortgage months at this point in time
-    const remainingMortgageMonths = Math.max(0, totalMortgageMonths - yearsFromStart * 12 - mortgageElapsedMonths);
-    const annualMortgagePmt = remainingMortgageMonths > 0
-      ? pmt(mortgageRate, remainingMortgageMonths, prevHomeLoan) * 12
-      : 0;
     const annualExpenses = annualMortgagePmt +
       (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
       propertyTaxesYear * retirementInflFactor +
@@ -252,13 +252,20 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // Home value — P column: P2 = B6*(1+inf), P[n] = P[n-1]*(1+inf)
     const currentHomeValue = prevHomeValue * (1 + inflationRate);
 
-    // Home loan — Q column: principal paydown
-    // Q2 = B7 + PPMT(rate, elapsedMonths, totalMonths, B7)*12 - extra*12
-    // Q[n] = MAX(0, Q[n-1] + PPMT(rate, (n-1)*12+elapsedMonths, totalMonths, B7)*12 - extra*12)
-    // PPMT returns negative (payment), so adding it reduces the loan
-    const paymentPeriod = yearsFromStart * 12 + mortgageElapsedMonths;
-    const principalPaid = ppmt(mortgageRate, paymentPeriod, totalMortgageMonths, homeLoan) * 12;
-    const currentHomeLoan = Math.max(0, prevHomeLoan + principalPaid - extraMortgageMonthly * 12);
+    // Home loan — proper amortization: simulate 12 monthly payments
+    // Reuses remainingMortgageMonths and monthlyMortgagePmt computed above
+    let currentHomeLoan = prevHomeLoan;
+    if (remainingMortgageMonths > 0 && prevHomeLoan > 0) {
+      const monthlyR = mortgageRate / 12;
+      let bal = prevHomeLoan;
+      for (let m = 0; m < 12; m++) {
+        const interest = bal * monthlyR;
+        const principal = monthlyMortgagePmt - interest;
+        bal = Math.max(0, bal - principal - extraMortgageMonthly);
+        if (bal === 0) break;
+      }
+      currentHomeLoan = bal;
+    }
 
     // Cash — R column: stays constant
     const cash = currentCash;

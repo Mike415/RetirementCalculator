@@ -13,14 +13,20 @@ export default function HomeMortgage() {
   const equity = inputs.homeValue - inputs.homeLoan;
   const ltv = inputs.homeValue > 0 ? inputs.homeLoan / inputs.homeValue : 0;
 
-  // Monthly payment estimate
+  // Monthly payment: use REMAINING months (total term − months already paid)
+  // and the CURRENT outstanding balance — not the original loan amount/term
   const r = inputs.mortgageRate / 12;
-  const n = inputs.mortgageTotalYears * 12;
+  const remainingMonths = Math.max(
+    1,
+    inputs.mortgageTotalYears * 12 - inputs.mortgageElapsedMonths
+  );
   const monthlyPmt =
     r === 0
-      ? inputs.homeLoan / n
-      : (inputs.homeLoan * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+      ? inputs.homeLoan / remainingMonths
+      : (inputs.homeLoan * r * Math.pow(1 + r, remainingMonths)) /
+        (Math.pow(1 + r, remainingMonths) - 1);
   const totalMonthly = monthlyPmt + inputs.extraMortgageMonthly;
+  const remainingYears = remainingMonths / 12;
 
   return (
     <div className="space-y-6">
@@ -124,6 +130,12 @@ export default function HomeMortgage() {
             Monthly Payment Breakdown
           </p>
           <div className="space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Remaining Term</span>
+              <span className="font-semibold tabular-nums text-slate-800">
+                {remainingYears.toFixed(1)} yrs ({remainingMonths} mo)
+              </span>
+            </div>
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">Base P&I Payment</span>
               <span className="font-semibold tabular-nums text-slate-800">
