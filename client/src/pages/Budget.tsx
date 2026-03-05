@@ -201,6 +201,17 @@ export default function Budget() {
         </p>
       </div>
 
+      {/* Exclusion note */}
+      <div className="flex gap-3 items-start bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+        <span className="text-amber-500 mt-0.5 flex-shrink-0 text-base">ⓘ</span>
+        <div className="text-amber-800">
+          <span className="font-semibold">Do not include housing costs that are already calculated automatically:</span>
+          {" "}primary home mortgage P&amp;I, property taxes, and home insurance are entered on the{" "}
+          <span className="font-semibold">Home &amp; Mortgage</span> page and deducted from your annual savings automatically.
+          This budget should cover all other living expenses — groceries, utilities, childcare, transportation, dining, etc.
+        </div>
+      </div>
+
       {/* Period tabs */}
       <div className="flex gap-2 flex-wrap">
         {budgetPeriods.map((period, idx) => {
