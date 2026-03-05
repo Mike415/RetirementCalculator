@@ -307,9 +307,15 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     if (!retired) {
       const homeExpenses =
         (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
+      // annualMortgagePmt is the regular P&I payment (already computed above).
+      // extraMortgageMonthly is the additional principal prepayment.
+      // Both are real cash outflows that reduce investable surplus.
       investments =
         prevInvestments * (1 + investmentGrowthRate) +
-        (income * (1 - effectiveTaxRate) - extraMortgageMonthly * 12 - homeExpenses) -
+        (income * (1 - effectiveTaxRate)
+          - annualMortgagePmt
+          - extraMortgageMonthly * 12
+          - homeExpenses) -
         (roth401kContribution + rothIRAContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else if (drawFromInvestments) {
