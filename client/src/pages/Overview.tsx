@@ -261,26 +261,26 @@ export default function Overview() {
 
       {/* Net Worth Chart */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4">
+          <div className="min-w-0">
             <h2 className="font-bold text-slate-800 mb-0.5">Net Worth Projection</h2>
             <p className="text-xs text-slate-400">
               {showMonteCarlo && mcData
-                ? "1,000 simulations with randomized annual returns — 10th / 50th / 90th percentile"
+                ? "1,000 simulations — 10th / 50th / 90th percentile"
                 : "Total, non-home, and inflation-adjusted net worth over time"}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {mcStale && (
-              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
-                Inputs changed — re-run
+              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full whitespace-nowrap">
+                Re-run
               </span>
             )}
             <button
               onClick={showMonteCarlo && mcData ? () => setShowMonteCarlo(false) : handleRunMonteCarlo}
               disabled={mcRunning}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border whitespace-nowrap",
                 showMonteCarlo && mcData
                   ? "bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]"
                   : "bg-white text-slate-600 border-slate-200 hover:border-[#1B4332] hover:text-[#1B4332]"
@@ -291,7 +291,7 @@ export default function Overview() {
               ) : (
                 <Dices className="h-3.5 w-3.5" />
               )}
-              {mcRunning ? "Running..." : showMonteCarlo && mcData ? "Monte Carlo ON" : "Monte Carlo"}
+              {mcRunning ? "Running..." : showMonteCarlo && mcData ? "MC: ON" : "Monte Carlo"}
             </button>
           </div>
         </div>
