@@ -254,7 +254,7 @@ export default function CloudSync() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1.5 text-xs"
+                  className="gap-1.5 text-xs bg-muted text-foreground border-border hover:bg-muted/80"
                   onClick={handleSave}
                   disabled={isBusy}
                 >
@@ -268,7 +268,7 @@ export default function CloudSync() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1.5 text-xs"
+                  className="gap-1.5 text-xs bg-muted text-foreground border-border hover:bg-muted/80"
                   onClick={handleLoad}
                   disabled={isBusy}
                 >
