@@ -68,8 +68,10 @@ export interface RetirementInputs {
   inflationRate: number; // e.g. 0.025
 
   // Retirement contributions (annual, inflation-adjusted each year)
+  k401Contribution: number;         // traditional 401K employee contribution
   roth401kContribution: number;
   rothIRAContribution: number;
+  iraContribution: number;          // traditional IRA contribution
 
   // Social Security
   socialSecurityEnabled: boolean;
@@ -91,6 +93,7 @@ export interface ProjectionRow {
   drawFrom401k: boolean;
   drawFromRoth401k: boolean;
   drawFromRothIRA: boolean;
+  drawFromIRA: boolean;
 
   // Financials
   income: number;
@@ -104,6 +107,7 @@ export interface ProjectionRow {
   k401: number;
   roth401k: number;
   rothIRA: number;
+  ira: number;
 
   // Summaries
   netWorth: number;
@@ -181,8 +185,10 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     homeInsuranceYear,
     investmentGrowthRate,
     inflationRate,
+    k401Contribution,
     roth401kContribution,
     rothIRAContribution,
+    iraContribution,
     socialSecurityEnabled,
     socialSecurityStartAge,
     socialSecurityMonthly,
@@ -201,6 +207,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   let prev401k = current401k;
   let prevRoth401k = currentRoth401k;
   let prevRothIRA = currentRothIRA;
+  let prevIRA = inputs.currentIRA;
   let prevIncome = currentGrossIncome;
 
   const totalMortgageMonths = mortgageTotalYears * 12;
@@ -212,7 +219,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const yearsFromStart = i;
 
     // Retirement status
-    const retired = yearsFromStart > (retirementAge - currentAge);
+    // Use >= so the person retires IN the configured year (age 65 = first retired year)
+    const retired = age >= retirementAge;
 
     // Budget period selection
     const nextAge = age + 1;
@@ -259,25 +267,26 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const annualMortgagePmt = monthlyMortgagePmt * 12;
 
     // ── Annual Expenses ──
-    const retirementYearsFromStart = retirementAge - currentAge;
-    const retirementInflFactor = Math.pow(1 + inflationRate, retirementYearsFromStart);
+    // All expense components use nextInflFactor (current year's inflation factor)
+    // so every cost grows consistently with inflation year over year.
     const annualExpenses =
       annualMortgagePmt +
       (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
-      propertyTaxesYear * retirementInflFactor +
-      (homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
+      (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
 
     // ── Net annual need (expenses minus SS income when retired) ──
     const netAnnualNeed = retired
       ? Math.max(0, annualExpenses - socialSecurityIncome)
       : 0;
 
-    // ── Draw priority ──
+    // ── Draw priority (sequential: Investments → 401K → Roth401K → RothIRA → IRA) ──
     const drawFromInvestments = retired && prevInvestments > 0;
     const drawFrom401k = retired && !drawFromInvestments && prev401k > 0;
     const drawFromRoth401k = retired && !drawFromInvestments && !drawFrom401k && prevRoth401k > 0;
     const drawFromRothIRA =
       retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && prevRothIRA > 0;
+    const drawFromIRA =
+      retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && !drawFromRothIRA && prevIRA > 0;
 
     // ── Income ──
     const income = retired ? 0 : prevIncome;
@@ -330,7 +339,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // ── 401K ──
     let k401: number;
     if (!retired) {
-      k401 = prev401k * (1 + investmentGrowthRate);
+      // Include traditional 401K employee contribution (inflation-adjusted)
+      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor;
     } else if (drawFrom401k) {
       k401 = prev401k * (1 + investmentGrowthRate) - netAnnualNeed;
     } else if (prev401k > 0) {
@@ -365,9 +375,21 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       rothIRA = prevRothIRA;
     }
 
+    // ── Traditional IRA ──
+    let ira: number;
+    if (!retired) {
+      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor;
+    } else if (drawFromIRA) {
+      ira = prevIRA * (1 + investmentGrowthRate) - netAnnualNeed;
+    } else if (prevIRA > 0) {
+      ira = prevIRA * (1 + investmentGrowthRate);
+    } else {
+      ira = prevIRA;
+    }
+
     // ── Net Worth ──
-    const netWorth = currentHomeValue - currentHomeLoan + cash + investments + k401 + roth401k + rothIRA;
-    const nonHomeNetWorth = cash + investments + k401 + roth401k + rothIRA;
+    const netWorth = currentHomeValue - currentHomeLoan + cash + investments + k401 + roth401k + rothIRA + ira;
+    const nonHomeNetWorth = cash + investments + k401 + roth401k + rothIRA + ira;
     const adjustedNetWorth = netWorth / Math.pow(1 + inflationRate, age - currentAge);
 
     rows.push({
@@ -378,6 +400,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       drawFrom401k,
       drawFromRoth401k,
       drawFromRothIRA,
+      drawFromIRA,
       income,
       socialSecurityIncome,
       oneTimeEventAmount,
@@ -389,6 +412,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       k401,
       roth401k,
       rothIRA,
+      ira,
       netWorth,
       nonHomeNetWorth,
       adjustedNetWorth,
@@ -404,6 +428,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     prev401k = k401;
     prevRoth401k = roth401k;
     prevRothIRA = rothIRA;
+    prevIRA = ira;
     if (!retired) {
       prevIncome = income * (1 + incomeGrowthRate);
     } else {
@@ -485,8 +510,10 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   investmentGrowthRate: 0.07,
   inflationRate: 0.03,
 
+  k401Contribution: 0,          // traditional 401K contribution (0 = using Roth 401K only)
   roth401kContribution: 23000,
   rothIRAContribution: 14000,
+  iraContribution: 0,            // traditional IRA contribution
 
   // Social Security defaults: start at 67 (full retirement age), ~$2,200/mo
   socialSecurityEnabled: true,

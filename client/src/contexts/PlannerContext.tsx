@@ -38,6 +38,9 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.socialSecurityStartAge === undefined) base.socialSecurityStartAge = DEFAULT_INPUTS.socialSecurityStartAge;
   if (base.socialSecurityMonthly === undefined) base.socialSecurityMonthly = DEFAULT_INPUTS.socialSecurityMonthly;
   if (!Array.isArray(base.oneTimeEvents)) base.oneTimeEvents = DEFAULT_INPUTS.oneTimeEvents;
+  // New contribution fields added in audit fix
+  if (base.k401Contribution === undefined) base.k401Contribution = DEFAULT_INPUTS.k401Contribution;
+  if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;
 
   // Merge budget periods: use saved periods if present, else defaults
   if (saved.budgetPeriods && Array.isArray(saved.budgetPeriods)) {

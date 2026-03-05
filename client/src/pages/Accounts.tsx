@@ -157,16 +157,28 @@ export default function Accounts() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <CurrencyInput
+            label="401K (Traditional) Contribution / Year"
+            value={inputs.k401Contribution}
+            onChange={(v) => updateInput("k401Contribution", v)}
+            hint="Pre-tax employee + employer match"
+          />
+          <CurrencyInput
             label="Roth 401K Contribution / Year"
             value={inputs.roth401kContribution}
             onChange={(v) => updateInput("roth401kContribution", v)}
-            hint="Combined employee + employer (e.g. $37,000)"
+            hint="After-tax employee + employer (e.g. $23,000)"
+          />
+          <CurrencyInput
+            label="Traditional IRA Contribution / Year"
+            value={inputs.iraContribution}
+            onChange={(v) => updateInput("iraContribution", v)}
+            hint="Pre-tax IRA contributions"
           />
           <CurrencyInput
             label="Roth IRA Contribution / Year"
             value={inputs.rothIRAContribution}
             onChange={(v) => updateInput("rothIRAContribution", v)}
-            hint="Combined for household (e.g. $13,000)"
+            hint="After-tax IRA (e.g. $7,000/person)"
           />
         </div>
       </SectionCard>
@@ -176,9 +188,9 @@ export default function Accounts() {
         <p className="text-sm font-semibold text-amber-800 mb-1">Account Drawdown Order</p>
         <p className="text-xs text-amber-700">
           At retirement, accounts are drawn in this priority order:{" "}
-          <strong>Taxable Investments → 401K → Roth 401K → Roth IRA</strong>. Each account is
-          fully depleted before moving to the next. All accounts continue to grow at the investment
-          growth rate even while not being drawn.
+          <strong>Taxable Investments → 401K (Traditional) → Roth 401K → Roth IRA → Traditional IRA</strong>.
+          Each account is fully depleted before moving to the next. All accounts continue to grow
+          at the investment growth rate even while not being drawn.
         </p>
       </div>
     </div>
