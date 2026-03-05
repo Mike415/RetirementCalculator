@@ -6,6 +6,7 @@
 import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import {
   Area,
@@ -88,7 +89,7 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export default function Overview() {
-  const { projection, inputs } = usePlanner();
+  const { projection, inputs, updateInput } = usePlanner();
 
   if (!projection.length) return null;
 
@@ -122,12 +123,27 @@ export default function Overview() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Retirement Overview</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Projection from age {inputs.currentAge} to {inputs.projectionEndAge} •{" "}
-          Retiring at age {inputs.retirementAge}
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Retirement Overview</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Projection from age {inputs.currentAge} to {inputs.projectionEndAge} •{" "}
+            Retiring at age {inputs.retirementAge}
+          </p>
+        </div>
+        {/* Retirement age quick-adjust slider */}
+        <div className="flex items-center gap-3 bg-white border border-slate-100 shadow-sm rounded-xl px-4 py-3 min-w-[240px]">
+          <span className="text-xs text-slate-500 whitespace-nowrap">Retire at</span>
+          <Slider
+            min={inputs.currentAge + 1}
+            max={Math.min(inputs.projectionEndAge - 1, 80)}
+            step={1}
+            value={[inputs.retirementAge]}
+            onValueChange={([v]) => updateInput("retirementAge", v)}
+            className="flex-1"
+          />
+          <span className="text-sm font-bold text-[#1B4332] tabular-nums w-7 text-right">{inputs.retirementAge}</span>
+        </div>
       </div>
 
       {/* Key Metrics */}

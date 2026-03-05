@@ -6,6 +6,7 @@
 import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
 
 type ViewMode = "networth" | "accounts" | "cashflow";
@@ -17,7 +18,7 @@ const VIEW_MODES: { id: ViewMode; label: string }[] = [
 ];
 
 export default function Projections() {
-  const { projection, inputs } = usePlanner();
+  const { projection, inputs, updateInput } = usePlanner();
   const [viewMode, setViewMode] = useState<ViewMode>("networth");
   const [highlightRetirement, setHighlightRetirement] = useState(true);
 
@@ -25,11 +26,26 @@ export default function Projections() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Projections Table</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Year-by-year detailed projection from age {inputs.currentAge} to {inputs.projectionEndAge}.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Projections Table</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Year-by-year detailed projection from age {inputs.currentAge} to {inputs.projectionEndAge}.
+          </p>
+        </div>
+        {/* Retirement age quick-adjust slider */}
+        <div className="flex items-center gap-3 bg-white border border-slate-100 shadow-sm rounded-xl px-4 py-3 min-w-[240px]">
+          <span className="text-xs text-slate-500 whitespace-nowrap">Retire at</span>
+          <Slider
+            min={inputs.currentAge + 1}
+            max={Math.min(inputs.projectionEndAge - 1, 80)}
+            step={1}
+            value={[inputs.retirementAge]}
+            onValueChange={([v]) => updateInput("retirementAge", v)}
+            className="flex-1"
+          />
+          <span className="text-sm font-bold text-[#1B4332] tabular-nums w-7 text-right">{inputs.retirementAge}</span>
+        </div>
       </div>
 
       {/* Controls */}
