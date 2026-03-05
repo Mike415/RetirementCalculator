@@ -7,12 +7,16 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, Dices } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { runMonteCarlo, MonteCarloResult } from "@/lib/projection";
 import {
   Area,
   AreaChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -88,8 +92,58 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
+function MonteCarloTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const p50 = payload.find((p: any) => p.dataKey === "p50");
+  const p10 = payload.find((p: any) => p.dataKey === "p10");
+  const p90 = payload.find((p: any) => p.dataKey === "p90");
+  const age = payload[0]?.payload?.age;
+  const successRate = payload[0]?.payload?.successRate;
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs min-w-[180px]">
+      <p className="font-bold text-slate-700 mb-2">{label} (Age {age})</p>
+      {p90 && <div className="flex justify-between gap-4 py-0.5"><span className="text-emerald-600 font-medium">90th pct</span><span className="font-bold tabular-nums">{formatCurrency(p90.value, true)}</span></div>}
+      {p50 && <div className="flex justify-between gap-4 py-0.5"><span className="text-[#1B4332] font-medium">Median</span><span className="font-bold tabular-nums">{formatCurrency(p50.value, true)}</span></div>}
+      {p10 && <div className="flex justify-between gap-4 py-0.5"><span className="text-red-500 font-medium">10th pct</span><span className="font-bold tabular-nums">{formatCurrency(p10.value, true)}</span></div>}
+      {successRate !== undefined && (
+        <div className="mt-2 pt-2 border-t border-slate-100">
+          <span className="text-slate-500">Success rate: </span>
+          <span className={cn("font-bold", successRate >= 0.8 ? "text-emerald-600" : successRate >= 0.5 ? "text-amber-600" : "text-red-500")}>
+            {Math.round(successRate * 100)}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Overview() {
   const { projection, inputs, updateInput } = usePlanner();
+  const [showMonteCarlo, setShowMonteCarlo] = useState(false);
+  const [mcRunning, setMcRunning] = useState(false);
+  const [mcData, setMcData] = useState<MonteCarloResult[] | null>(null);
+  const [mcInputsKey, setMcInputsKey] = useState("");
+
+  const inputsKey = useMemo(() => JSON.stringify({
+    retirementAge: inputs.retirementAge,
+    investmentGrowthRate: inputs.investmentGrowthRate,
+    inflationRate: inputs.inflationRate,
+    projectionEndAge: inputs.projectionEndAge,
+    currentAge: inputs.currentAge,
+  }), [inputs]);
+
+  const handleRunMonteCarlo = useCallback(() => {
+    setMcRunning(true);
+    setTimeout(() => {
+      const result = runMonteCarlo(inputs, 1000, 0.12);
+      setMcData(result);
+      setMcInputsKey(inputsKey);
+      setMcRunning(false);
+      setShowMonteCarlo(true);
+    }, 20);
+  }, [inputs, inputsKey]);
+
+  const mcStale = mcData !== null && mcInputsKey !== inputsKey;
 
   if (!projection.length) return null;
 
@@ -207,70 +261,100 @@ export default function Overview() {
 
       {/* Net Worth Chart */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <h2 className="font-bold text-slate-800 mb-1">Net Worth Projection</h2>
-        <p className="text-xs text-slate-400 mb-4">
-          Total, non-home, and inflation-adjusted net worth over time
-        </p>
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="gradNW" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={CHART_COLORS.netWorth} stopOpacity={0.15} />
-                <stop offset="95%" stopColor={CHART_COLORS.netWorth} stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gradNHNW" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={CHART_COLORS.nonHomeNetWorth} stopOpacity={0.1} />
-                <stop offset="95%" stopColor={CHART_COLORS.nonHomeNetWorth} stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="gradAdj" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={CHART_COLORS.adjustedNetWorth} stopOpacity={0.1} />
-                <stop offset="95%" stopColor={CHART_COLORS.adjustedNetWorth} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis
-              dataKey="year"
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis
-              tickFormatter={(v) => formatCurrency(v, true)}
-              tick={{ fontSize: 11, fill: "#94a3b8" }}
-              tickLine={false}
-              axisLine={false}
-              width={70}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
-              iconType="circle"
-              iconSize={8}
-            />
-            <Area
-              type="monotone"
-              dataKey="Net Worth"
-              stroke={CHART_COLORS.netWorth}
-              strokeWidth={2}
-              fill="url(#gradNW)"
-            />
-            <Area
-              type="monotone"
-              dataKey="Non-Home NW"
-              stroke={CHART_COLORS.nonHomeNetWorth}
-              strokeWidth={2}
-              fill="url(#gradNHNW)"
-            />
-            <Area
-              type="monotone"
-              dataKey="Adj. Net Worth"
-              stroke={CHART_COLORS.adjustedNetWorth}
-              strokeWidth={1.5}
-              strokeDasharray="4 2"
-              fill="url(#gradAdj)"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="font-bold text-slate-800 mb-0.5">Net Worth Projection</h2>
+            <p className="text-xs text-slate-400">
+              {showMonteCarlo && mcData
+                ? "1,000 simulations with randomized annual returns — 10th / 50th / 90th percentile"
+                : "Total, non-home, and inflation-adjusted net worth over time"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {mcStale && (
+              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
+                Inputs changed — re-run
+              </span>
+            )}
+            <button
+              onClick={showMonteCarlo && mcData ? () => setShowMonteCarlo(false) : handleRunMonteCarlo}
+              disabled={mcRunning}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                showMonteCarlo && mcData
+                  ? "bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-[#1B4332] hover:text-[#1B4332]"
+              )}
+            >
+              {mcRunning ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Dices className="h-3.5 w-3.5" />
+              )}
+              {mcRunning ? "Running..." : showMonteCarlo && mcData ? "Monte Carlo ON" : "Monte Carlo"}
+            </button>
+          </div>
+        </div>
+
+        {(!showMonteCarlo || !mcData) && (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gradNW" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS.netWorth} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={CHART_COLORS.netWorth} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradNHNW" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS.nonHomeNetWorth} stopOpacity={0.1} />
+                  <stop offset="95%" stopColor={CHART_COLORS.nonHomeNetWorth} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradAdj" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_COLORS.adjustedNetWorth} stopOpacity={0.1} />
+                  <stop offset="95%" stopColor={CHART_COLORS.adjustedNetWorth} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="year" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+              <YAxis tickFormatter={(v) => formatCurrency(v, true)} tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={70} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} iconType="circle" iconSize={8} />
+              <Area type="monotone" dataKey="Net Worth" stroke={CHART_COLORS.netWorth} strokeWidth={2} fill="url(#gradNW)" />
+              <Area type="monotone" dataKey="Non-Home NW" stroke={CHART_COLORS.nonHomeNetWorth} strokeWidth={2} fill="url(#gradNHNW)" />
+              <Area type="monotone" dataKey="Adj. Net Worth" stroke={CHART_COLORS.adjustedNetWorth} strokeWidth={1.5} strokeDasharray="4 2" fill="url(#gradAdj)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+
+        {showMonteCarlo && mcData && (
+          <>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={mcData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="year" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+                <YAxis tickFormatter={(v) => formatCurrency(v, true)} tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={70} />
+                <Tooltip content={<MonteCarloTooltip />} />
+                <Line type="monotone" dataKey="p90" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="90th percentile" />
+                <Line type="monotone" dataKey="p50" stroke="#1B4332" strokeWidth={2.5} dot={false} name="Median (50th)" />
+                <Line type="monotone" dataKey="p10" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2" dot={false} name="10th percentile" />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} iconType="circle" iconSize={8} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-3 gap-3">
+              {[inputs.retirementAge, Math.round((inputs.retirementAge + inputs.projectionEndAge) / 2), inputs.projectionEndAge].map((age) => {
+                const row = mcData.find((r) => r.age === age);
+                if (!row) return null;
+                const pct = Math.round(row.successRate * 100);
+                return (
+                  <div key={age} className="text-center">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wide">Age {age}</p>
+                    <p className={cn("text-lg font-bold tabular-nums", pct >= 80 ? "text-emerald-600" : pct >= 50 ? "text-amber-600" : "text-red-500")}>{pct}%</p>
+                    <p className="text-[10px] text-slate-400">success rate</p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Account Breakdown Chart */}

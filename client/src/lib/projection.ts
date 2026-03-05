@@ -575,3 +575,250 @@ export const DEFAULT_INPUTS: RetirementInputs = {
 
   budgetPeriods: DEFAULT_BUDGET_PERIODS,
 };
+
+// ─── Monte Carlo Simulation ───────────────────────────────────────────────────
+
+/**
+ * Box-Muller transform: generates a standard-normal random variable.
+ * Returns a value drawn from N(0, 1).
+ */
+function boxMuller(): number {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+/**
+ * Run a single projection with a pre-supplied sequence of annual growth rates
+ * instead of the fixed `investmentGrowthRate` from inputs.
+ * All other logic (budget, income, SS, etc.) is identical to runProjection.
+ */
+export function runProjectionWithReturns(
+  inputs: RetirementInputs,
+  annualReturns: number[]
+): ProjectionRow[] {
+  // Temporarily override the growth rate each year by patching inputs per iteration.
+  // We achieve this by running the normal projection loop with a modified rate array.
+  const rows: ProjectionRow[] = [];
+  const years = inputs.projectionEndAge - inputs.currentAge;
+
+  // We'll use a simplified version that only tracks netWorth (for speed).
+  // This mirrors the account update logic from runProjection.
+  const {
+    currentAge, retirementAge, projectionEndAge,
+    currentGrossIncome, incomeGrowthRate, effectiveTaxRate,
+    currentCash, currentInvestments, current401k, currentRoth401k,
+    currentRothIRA, homeValue, homeLoan, mortgageRate,
+    mortgageTotalYears, mortgageElapsedMonths, extraMortgageMonthly,
+    propertyTaxesYear, homeInsuranceYear, inflationRate,
+    k401Contribution, roth401kContribution, rothIRAContribution,
+    iraContribution, socialSecurityEnabled, socialSecurityStartAge,
+    socialSecurityMonthly, oneTimeEvents, budgetPeriods,
+  } = inputs;
+
+  const incomePhases = inputs.incomePhases ?? [];
+  const startYear = new Date().getFullYear();
+  const sortedPhases = [...incomePhases].sort((a, b) => a.startAge - b.startAge);
+  const phaseIncomeLevels: Record<string, number> = {};
+  const totalMortgageMonths = mortgageTotalYears * 12;
+
+  let prevHomeValue = homeValue;
+  let prevHomeLoan = homeLoan;
+  let prevCash = currentCash;
+  let prevInvestments = currentInvestments;
+  let prev401k = current401k;
+  let prevRoth401k = currentRoth401k;
+  let prevRothIRA = currentRothIRA;
+  let prevIRA = inputs.currentIRA;
+  let prevIncome = currentGrossIncome;
+
+  for (let i = 0; i <= years; i++) {
+    const year = startYear + i;
+    const age = currentAge + i;
+    const yearsFromStart = i;
+    const growthRate = annualReturns[i] ?? inputs.investmentGrowthRate;
+    const retired = age >= retirementAge;
+
+    let additionalPhaseIncome = 0;
+    for (const phase of sortedPhases) {
+      const inRange = age >= phase.startAge && (phase.endAge === undefined || phase.endAge === null || age <= phase.endAge);
+      if (inRange) additionalPhaseIncome += phaseIncomeLevels[phase.id] ?? phase.annualIncome;
+    }
+    const baseIncome = !retired ? prevIncome : 0;
+    const effectiveIncome = baseIncome + additionalPhaseIncome;
+    const budgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
+    const activePeriod = budgetPeriods[budgetPeriodIdx];
+    const monthlyBudget = getBudgetMonthlyTotal(activePeriod, budgetPeriodIdx);
+
+    const inflFactor = Math.pow(1 + inflationRate, yearsFromStart);
+    const nextInflFactor = Math.pow(1 + inflationRate, yearsFromStart + 1);
+
+    const ssActive = socialSecurityEnabled && age >= socialSecurityStartAge;
+    const ssYearsFromStart = Math.max(0, socialSecurityStartAge - currentAge);
+    const ssInflFactor = Math.pow(1 + inflationRate, ssYearsFromStart);
+    const socialSecurityIncome = ssActive
+      ? socialSecurityMonthly * 12 * ssInflFactor * Math.pow(1 + inflationRate, age - socialSecurityStartAge)
+      : 0;
+
+    const oneTimeEventAmount = (oneTimeEvents ?? [])
+      .filter((e) => e.age === age)
+      .reduce((sum, e) => sum + e.amount, 0);
+    const oneTimeToInvestments = (oneTimeEvents ?? [])
+      .filter((e) => e.age === age && e.account === "investments")
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const annualExpenses = monthlyBudget * 12 * inflFactor;
+    const annualNetIncome = effectiveIncome * (1 - effectiveTaxRate);
+    const netAnnualNeed = annualExpenses - annualNetIncome - socialSecurityIncome;
+
+    // Mortgage
+    let monthlyMortgagePayment = 0;
+    const elapsedMonths = mortgageElapsedMonths + yearsFromStart * 12;
+    if (prevHomeLoan > 0 && elapsedMonths < totalMortgageMonths) {
+      const r = mortgageRate / 12;
+      const n = totalMortgageMonths;
+      monthlyMortgagePayment = r === 0 ? homeLoan / n : (homeLoan * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    }
+    const annualMortgage = (monthlyMortgagePayment + extraMortgageMonthly) * 12;
+    const currentHomeValue = prevHomeValue * (1 + inflationRate);
+    const interestPaid = prevHomeLoan * mortgageRate;
+    const principalPaid = Math.min(annualMortgage - interestPaid, prevHomeLoan);
+    const currentHomeLoan = Math.max(0, prevHomeLoan - principalPaid);
+    const annualPropertyCosts = (propertyTaxesYear + homeInsuranceYear) * inflFactor;
+
+    // Cash
+    let cash = prevCash;
+    // Accounts
+    let investments = prevInvestments;
+    let k401 = prev401k;
+    let roth401k = prevRoth401k;
+    let rothIRA = prevRothIRA;
+    let ira = prevIRA;
+
+    let drawFromInvestments = false, drawFrom401k = false, drawFromRoth401k = false, drawFromRothIRA = false, drawFromIRA = false;
+
+    if (!retired) {
+      investments = prevInvestments * (1 + growthRate) + oneTimeToInvestments;
+      k401 = prev401k * (1 + growthRate) + k401Contribution * nextInflFactor;
+      roth401k = prevRoth401k * (1 + growthRate) + roth401kContribution * nextInflFactor;
+      rothIRA = prevRothIRA * (1 + growthRate) + rothIRAContribution * nextInflFactor;
+      ira = prevIRA * (1 + growthRate) + iraContribution * nextInflFactor;
+    } else {
+      const totalNeed = netAnnualNeed + annualMortgage + annualPropertyCosts;
+      if (prevInvestments > 0) {
+        drawFromInvestments = true;
+        investments = prevInvestments * (1 + growthRate) - totalNeed + oneTimeToInvestments;
+      } else if (prev401k > 0) {
+        drawFrom401k = true;
+        k401 = prev401k * (1 + growthRate) - totalNeed;
+      } else if (prevRoth401k > 0) {
+        drawFromRoth401k = true;
+        roth401k = prevRoth401k * (1 + growthRate) - totalNeed;
+      } else if (prevRothIRA > 0) {
+        drawFromRothIRA = true;
+        rothIRA = prevRothIRA * (1 + growthRate) - totalNeed;
+      } else {
+        investments = prevInvestments * (1 + growthRate) - totalNeed + oneTimeToInvestments;
+      }
+      k401 = k401 !== prev401k ? k401 : prev401k * (1 + growthRate);
+      roth401k = roth401k !== prevRoth401k ? roth401k : prevRoth401k * (1 + growthRate);
+      rothIRA = rothIRA !== prevRothIRA ? rothIRA : prevRothIRA * (1 + growthRate);
+      ira = ira !== prevIRA ? ira : prevIRA * (1 + growthRate);
+    }
+
+    const netWorth = cash + investments + k401 + roth401k + rothIRA + ira + currentHomeValue - currentHomeLoan;
+    const nonHomeNetWorth = cash + investments + k401 + roth401k + rothIRA + ira;
+    const adjustedNetWorth = netWorth / Math.pow(1 + inflationRate, age - currentAge);
+
+    rows.push({
+      year, age, retired,
+      drawFromInvestments, drawFrom401k, drawFromRoth401k, drawFromRothIRA, drawFromIRA,
+      income: effectiveIncome,
+      additionalPhaseIncome, socialSecurityIncome, oneTimeEventAmount,
+      annualExpenses, homeValue: currentHomeValue, homeLoan: currentHomeLoan,
+      cash, investments, k401, roth401k, rothIRA, ira,
+      netWorth, nonHomeNetWorth, adjustedNetWorth,
+      budgetPeriodName: activePeriod.name, monthlyBudget,
+    });
+
+    prevHomeValue = currentHomeValue;
+    prevHomeLoan = currentHomeLoan;
+    prevCash = cash;
+    prevInvestments = investments;
+    prev401k = k401;
+    prevRoth401k = roth401k;
+    prevRothIRA = rothIRA;
+    prevIRA = ira;
+    prevIncome = !retired ? prevIncome * (1 + incomeGrowthRate) : 0;
+    for (const phase of sortedPhases) {
+      const inRange = age >= phase.startAge && (phase.endAge === undefined || phase.endAge === null || age <= phase.endAge);
+      if (inRange) {
+        const current = phaseIncomeLevels[phase.id] ?? phase.annualIncome;
+        phaseIncomeLevels[phase.id] = current * (1 + phase.growthRate);
+      }
+    }
+  }
+
+  return rows;
+}
+
+export interface MonteCarloResult {
+  age: number;
+  year: number;
+  p10: number;   // 10th percentile net worth
+  p25: number;   // 25th percentile net worth
+  p50: number;   // 50th percentile (median)
+  p75: number;   // 75th percentile net worth
+  p90: number;   // 90th percentile net worth
+  successRate: number; // fraction of simulations with netWorth > 0
+}
+
+/**
+ * Run Monte Carlo simulation.
+ * @param inputs         Plan inputs
+ * @param numSimulations Number of random runs (default 1000)
+ * @param stdDev         Annual return standard deviation (default 0.12 = ~historical US equity)
+ * @returns              Per-age percentile bands
+ */
+export function runMonteCarlo(
+  inputs: RetirementInputs,
+  numSimulations = 1000,
+  stdDev = 0.12
+): MonteCarloResult[] {
+  const mean = inputs.investmentGrowthRate;
+  const years = inputs.projectionEndAge - inputs.currentAge;
+
+  // Collect net worth at each age across all simulations
+  // allNetWorths[yearIndex][simIndex] = netWorth
+  const allNetWorths: number[][] = Array.from({ length: years + 1 }, () => []);
+
+  for (let sim = 0; sim < numSimulations; sim++) {
+    const annualReturns = Array.from({ length: years + 1 }, () =>
+      mean + stdDev * boxMuller()
+    );
+    const rows = runProjectionWithReturns(inputs, annualReturns);
+    rows.forEach((row, idx) => {
+      allNetWorths[idx].push(row.netWorth);
+    });
+  }
+
+  // Compute percentiles at each age
+  const startYear = new Date().getFullYear();
+  return allNetWorths.map((values, idx) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const n = sorted.length;
+    const percentile = (p: number) => sorted[Math.floor((p / 100) * (n - 1))];
+    const successRate = values.filter((v) => v > 0).length / n;
+    return {
+      age: inputs.currentAge + idx,
+      year: startYear + idx,
+      p10: percentile(10),
+      p25: percentile(25),
+      p50: percentile(50),
+      p75: percentile(75),
+      p90: percentile(90),
+      successRate,
+    };
+  });
+}
