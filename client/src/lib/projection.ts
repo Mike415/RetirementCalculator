@@ -26,6 +26,7 @@ export interface BudgetItem {
 export interface IncomePhase {
   id: string;
   startAge: number;           // age at which this income phase begins
+  endAge?: number;            // optional age at which this income phase ends (inclusive)
   annualIncome: number;       // gross income at the start of this phase
   growthRate: number;         // annual growth rate while in this phase (e.g. 0.03)
   continuesInRetirement: boolean; // if true, income persists even after retirementAge
@@ -247,9 +248,12 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       if (age >= phase.startAge) activePhase = phase;
     }
     // Determine effective income for this year
-    // If a phase is active and (not retired OR continuesInRetirement), use phase income
-    // Otherwise fall back to base income (prevIncome) unless retired with no phase
-    const phaseIsActive = activePhase !== null && (!retired || activePhase.continuesInRetirement);
+    // A phase is active if: age >= startAge AND (no endAge OR age <= endAge)
+    // AND (not retired OR continuesInRetirement)
+    const phaseInRange = activePhase !== null &&
+      age >= activePhase.startAge &&
+      (activePhase.endAge === undefined || activePhase.endAge === null || age <= activePhase.endAge);
+    const phaseIsActive = phaseInRange && (!retired || activePhase!.continuesInRetirement);
     const effectiveIncome = phaseIsActive
       ? (phaseIncomeLevels[activePhase!.id] ?? activePhase!.annualIncome)
       : (!retired ? prevIncome : 0);
@@ -467,7 +471,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     }
     // Update each phase's income level (compound within the phase)
     for (const phase of sortedPhases) {
-      if (age >= phase.startAge && (!retired || phase.continuesInRetirement)) {
+      const inRange = age >= phase.startAge &&
+        (phase.endAge === undefined || phase.endAge === null || age <= phase.endAge);
+      if (inRange && (!retired || phase.continuesInRetirement)) {
         const current = phaseIncomeLevels[phase.id] ?? phase.annualIncome;
         phaseIncomeLevels[phase.id] = current * (1 + phase.growthRate);
       }

@@ -203,7 +203,7 @@ export default function IncomePhases() {
                       )}
                     </div>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Age {phase.startAge} · {formatCurrency(phase.annualIncome, true)}/yr ·{" "}
+                      Age {phase.startAge}{phase.endAge ? `–${phase.endAge}` : '+'} · {formatCurrency(phase.annualIncome, true)}/yr ·{" "}
                       {formatPercent(phase.growthRate)}/yr growth
                     </p>
                   </div>
@@ -243,7 +243,7 @@ export default function IncomePhases() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       {/* Start Age */}
                       <PhaseNumberField
                         label="Start Age"
@@ -252,6 +252,16 @@ export default function IncomePhases() {
                         min={inputs.currentAge}
                         max={inputs.projectionEndAge}
                         suffix="yrs"
+                      />
+                      {/* End Age */}
+                      <PhaseOptionalNumberField
+                        label="End Age"
+                        value={phase.endAge}
+                        onChange={(v) => updatePhase(phase.id, "endAge", v)}
+                        min={phase.startAge + 1}
+                        max={inputs.projectionEndAge}
+                        suffix="yrs"
+                        placeholder="None"
                       />
                       {/* Annual Income */}
                       <PhaseCurrencyField
@@ -296,19 +306,23 @@ export default function IncomePhases() {
                     <div className="bg-[#1B4332]/5 rounded-lg p-3">
                       <p className="text-xs font-semibold text-[#1B4332] mb-1">Preview</p>
                       <p className="text-xs text-slate-600">
-                        From age <strong>{phase.startAge}</strong>, income switches to{" "}
+                        From age <strong>{phase.startAge}</strong>
+                        {phase.endAge ? <> to <strong>{phase.endAge}</strong></> : null},
+                        {" "}income switches to{" "}
                         <strong>{formatCurrency(phase.annualIncome)}/yr</strong> and grows at{" "}
                         <strong>{formatPercent(phase.growthRate)}/yr</strong>.
-                        {phase.continuesInRetirement
+                        {phase.endAge
+                          ? ` Income stops at age ${phase.endAge}.`
+                          : phase.continuesInRetirement
                           ? ` This income continues past retirement age ${inputs.retirementAge}.`
                           : ` This income stops at retirement age ${inputs.retirementAge}.`}
                         {phase.growthRate > 0 && (
                           <>
                             {" "}By age{" "}
-                            {Math.min(phase.startAge + 10, inputs.projectionEndAge)}, it will be{" "}
+                            {Math.min(phase.startAge + 10, phase.endAge ?? inputs.projectionEndAge)}, it will be{" "}
                             {formatCurrency(
                               phase.annualIncome *
-                                Math.pow(1 + phase.growthRate, Math.min(10, inputs.projectionEndAge - phase.startAge))
+                                Math.pow(1 + phase.growthRate, Math.min(10, (phase.endAge ?? inputs.projectionEndAge) - phase.startAge))
                             )}
                             /yr.
                           </>
@@ -427,6 +441,55 @@ function PhasePercentField({ label, value, onChange }: { label: string; value: n
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
       </div>
+    </div>
+  );
+}
+
+function PhaseOptionalNumberField({
+  label, value, onChange, min, max, suffix, placeholder,
+}: {
+  label: string;
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+  min?: number; max?: number; suffix?: string; placeholder?: string;
+}) {
+  const [raw, setRaw] = useState<string | null>(null);
+  const display = raw ?? (value !== undefined && value !== null ? String(value) : "");
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={display}
+          placeholder={placeholder ?? "None"}
+          onChange={(e) => setRaw(e.target.value)}
+          onFocus={() => setRaw(value !== undefined && value !== null ? String(value) : "")}
+          onBlur={() => {
+            const trimmed = (raw ?? "").trim();
+            if (trimmed === "" || trimmed.toLowerCase() === "none") {
+              onChange(undefined);
+            } else {
+              const n = parseFloat(trimmed.replace(/,/g, ""));
+              if (!isNaN(n)) {
+                const clamped = Math.max(min ?? -Infinity, Math.min(max ?? Infinity, n));
+                onChange(clamped);
+              }
+            }
+            setRaw(null);
+          }}
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 pr-10 placeholder:text-slate-300"
+        />
+        {suffix && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+            {suffix}
+          </span>
+        )}
+      </div>
+      <p className="text-[10px] text-slate-400 mt-1">Leave blank for no end</p>
     </div>
   );
 }
