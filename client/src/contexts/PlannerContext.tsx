@@ -102,6 +102,7 @@ interface PlannerContextValue {
   resetToDefaults: () => void;
   exportPlan: () => void;
   importPlan: (file: File) => Promise<{ ok: boolean; error?: string }>;
+  importFromObject: (data: unknown) => { ok: boolean; error?: string };
   projection: ProjectionRow[];
 }
 
@@ -174,6 +175,25 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // ── Import from parsed object (used by Gist cloud sync) ──────────────────
+  const importFromObject = useCallback((data: unknown): { ok: boolean; error?: string } => {
+    try {
+      const parsed = data as Record<string, unknown>;
+      const raw: Partial<RetirementInputs> =
+        parsed?.inputs && typeof parsed.inputs === 'object'
+          ? (parsed.inputs as Partial<RetirementInputs>)
+          : (parsed as Partial<RetirementInputs>);
+      if (typeof raw !== 'object' || raw === null) {
+        return { ok: false, error: 'Invalid plan format.' };
+      }
+      const merged = mergeWithDefaults(raw);
+      setInputs(merged);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Could not parse plan data.' };
+    }
+  }, []);
+
   const projection = useMemo(() => {
     try {
       return runProjection(inputs);
@@ -185,7 +205,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PlannerContext.Provider
-      value={{ inputs, setInputs, updateInput, resetToDefaults, exportPlan, importPlan, projection }}
+      value={{ inputs, setInputs, updateInput, resetToDefaults, exportPlan, importPlan, importFromObject, projection }}
     >
       {children}
     </PlannerContext.Provider>

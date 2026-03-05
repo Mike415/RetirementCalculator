@@ -7,6 +7,7 @@
  * item is highlighted on refresh and direct links.
  */
 
+import CloudSync from "@/components/CloudSync";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { cn } from "@/lib/utils";
 import {
@@ -177,7 +178,10 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-white/10 space-y-1.5">
+      <div className="px-4 py-4 border-t border-white/10 space-y-2">
+        {/* Cloud Sync */}
+        <CloudSync />
+
         {/* Export */}
         <button
           onClick={exportPlan}
