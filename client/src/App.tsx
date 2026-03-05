@@ -89,22 +89,23 @@ function PlannerApp() {
   );
 }
 
-// Vite exposes VITE_BASE_PATH at build time; strip trailing slash for wouter
-const BASE = (import.meta.env.VITE_BASE_PATH ?? "/").replace(/\/$/, "") || "";
+// Vite always sets BASE_URL from the `base` config option.
+// Strip trailing slash so wouter treats it as a prefix (e.g. "/RetirementCalculator").
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "") || "";
 
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <PlannerProvider>
-            <Router base={BASE}>
+      <Router base={BASE}>
+        <ThemeProvider defaultTheme="light">
+          <TooltipProvider>
+            <PlannerProvider>
               <Toaster />
               <PlannerApp />
-            </Router>
-          </PlannerProvider>
-        </TooltipProvider>
-      </ThemeProvider>
+            </PlannerProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </Router>
     </ErrorBoundary>
   );
 }
