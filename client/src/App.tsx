@@ -28,6 +28,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Route, Switch, Redirect, Router } from "wouter";
+import { useHashLocation } from "wouter/use-hash-location";
 
 function PlannerApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -89,14 +90,13 @@ function PlannerApp() {
   );
 }
 
-// Vite always sets BASE_URL from the `base` config option.
-// Strip trailing slash so wouter treats it as a prefix (e.g. "/RetirementCalculator").
-const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "") || "";
-
 function App() {
   return (
     <ErrorBoundary>
-      <Router base={BASE}>
+      {/* Use hash-based routing so all navigation works on GitHub Pages
+          without needing server-side rewrites or a base path prefix.
+          URLs look like: /RetirementCalculator/#/overview */}
+      <Router hook={useHashLocation}>
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
             <PlannerProvider>
