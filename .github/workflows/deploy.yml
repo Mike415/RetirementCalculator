@@ -36,6 +36,8 @@ jobs:
         run: pnpm install
 
       - name: Build
+        env:
+          VITE_BASE_PATH: /RetirementCalculator/
         run: pnpm run build:pages
 
       - name: Upload artifact
