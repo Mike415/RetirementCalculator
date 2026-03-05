@@ -210,11 +210,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   } = inputs;
 
   const incomePhases = inputs.incomePhases ?? [];
-  // DEBUG: log incomePhases to console so we can verify they're being passed in
-  if (incomePhases.length > 0) {
-    console.log('[Projection] incomePhases:', JSON.stringify(incomePhases));
-  }
-  const startYear = new Date().getFullYear();;
+  const startYear = new Date().getFullYear();
   const rows: ProjectionRow[] = [];
 
   // ── Initial state ──
@@ -261,11 +257,6 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const baseIncome = !retired ? prevIncome : 0;
     // Total effective income = base + all active additive phases
     const effectiveIncome = baseIncome + additionalPhaseIncome;
-    // DEBUG
-    if (additionalPhaseIncome > 0) {
-      console.log(`[Projection] Age ${age}: additionalPhaseIncome=${additionalPhaseIncome.toFixed(0)}, effectiveIncome=${effectiveIncome.toFixed(0)}`);
-    }
-
     // Budget period selection — use current age so the period switches exactly
     // at the configured startAge (e.g. startAge=38 activates when age=38).
     const budgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
@@ -316,9 +307,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
       (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
 
-    // ── Net annual need (expenses minus SS income when retired) ──
+    // ── Net annual need (expenses minus SS income and active alternative income when retired) ──
+    // Alternative income (rental, pension, consulting, etc.) reduces how much must be drawn
+    // from investment accounts, exactly like Social Security does.
     const netAnnualNeed = retired
-      ? Math.max(0, annualExpenses - socialSecurityIncome)
+      ? Math.max(0, annualExpenses - socialSecurityIncome - additionalPhaseIncome)
       : 0;
 
     // ── Draw priority (sequential: Investments → 401K → Roth401K → RothIRA → IRA) ──
@@ -361,13 +354,17 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       // annualMortgagePmt is the regular P&I payment (already computed above).
       // extraMortgageMonthly is the additional principal prepayment.
       // Both are real cash outflows that reduce investable surplus.
+      // Deduct ALL retirement contributions as cash outflows from the investable surplus:
+      //   - k401Contribution: pre-tax cash that goes into traditional 401K (reduces take-home)
+      //   - roth401kContribution + rothIRAContribution: after-tax cash into Roth accounts
+      //   - iraContribution: after-tax cash into traditional IRA
       investments =
         prevInvestments * (1 + investmentGrowthRate) +
         (income * (1 - effectiveTaxRate)
           - annualMortgagePmt
           - extraMortgageMonthly * 12
           - homeExpenses) -
-        (roth401kContribution + rothIRAContribution) * nextInflFactor +
+        (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else if (drawFromInvestments) {
       investments =
