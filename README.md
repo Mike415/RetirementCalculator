@@ -75,3 +75,4 @@ The output is in `dist/public/` — upload those files to any static host (Netli
 - [Recharts](https://recharts.org/) — charts
 - [Wouter](https://github.com/molefrog/wouter) — client-side routing
 - [Lucide React](https://lucide.dev/) — icons
+
