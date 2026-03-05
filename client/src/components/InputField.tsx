@@ -1,10 +1,24 @@
 /**
  * InputField — Reusable form input components for the Retirement Planner
  * Design: "Horizon" — Warm Modernist Financial Planning
+ *
+ * All numeric inputs use a local string state so the user can freely edit
+ * (including deleting all characters) without the field snapping back.
+ * The numeric value is only committed to the parent on blur.
  */
 
 import { cn } from "@/lib/utils";
-import React, { useCallback, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+
+// ─── Shared base styles ───────────────────────────────────────────────────────
+
+const baseInput = cn(
+  "w-full py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-200 rounded-lg",
+  "focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]",
+  "transition-colors duration-150 tabular-nums"
+);
+
+// ─── CurrencyInput ────────────────────────────────────────────────────────────
 
 interface CurrencyInputProps {
   label: string;
@@ -13,7 +27,7 @@ interface CurrencyInputProps {
   hint?: string;
   className?: string;
   min?: number;
-  max?: number;
+  allowNegative?: boolean;
 }
 
 export function CurrencyInput({
@@ -22,31 +36,52 @@ export function CurrencyInput({
   onChange,
   hint,
   className,
-  min = 0,
+  min,
+  allowNegative = false,
 }: CurrencyInputProps) {
-  const [focused, setFocused] = useState(false);
-  const [raw, setRaw] = useState("");
+  // Local string state — always reflects what's in the <input>
+  const [localStr, setLocalStr] = useState<string>(() =>
+    value === 0 ? "" : String(value)
+  );
+  const isFocused = useRef(false);
 
-  const displayValue = focused
-    ? raw
+  // Sync from parent only when the field is not being edited
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalStr(value === 0 ? "" : String(value));
+    }
+  }, [value]);
+
+  const handleFocus = () => {
+    isFocused.current = true;
+    // Show raw number (no commas) when editing
+    setLocalStr(value === 0 ? "" : String(value));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow digits, one decimal point, and optionally a leading minus
+    const raw = allowNegative
+      ? e.target.value.replace(/[^0-9.\-]/g, "")
+      : e.target.value.replace(/[^0-9.]/g, "");
+    setLocalStr(raw);
+  };
+
+  const handleBlur = () => {
+    isFocused.current = false;
+    const parsed = parseFloat(localStr.replace(/,/g, ""));
+    let committed = isNaN(parsed) ? 0 : parsed;
+    if (min !== undefined) committed = Math.max(min, committed);
+    onChange(committed);
+    // Show formatted value after blur
+    setLocalStr(committed === 0 ? "" : String(committed));
+  };
+
+  // While focused show raw string; while blurred show comma-formatted number
+  const displayValue = isFocused.current
+    ? localStr
     : value === 0
     ? ""
     : value.toLocaleString("en-US");
-
-  const handleFocus = useCallback(() => {
-    setFocused(true);
-    setRaw(value === 0 ? "" : String(value));
-  }, [value]);
-
-  const handleBlur = useCallback(() => {
-    setFocused(false);
-    const parsed = parseFloat(raw.replace(/,/g, "")) || 0;
-    onChange(Math.max(min, parsed));
-  }, [raw, onChange, min]);
-
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setRaw(e.target.value.replace(/[^0-9.,]/g, ""));
-  }, []);
 
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -54,7 +89,7 @@ export function CurrencyInput({
         {label}
       </label>
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium pointer-events-none">
           $
         </span>
         <input
@@ -65,11 +100,7 @@ export function CurrencyInput({
           onBlur={handleBlur}
           onChange={handleChange}
           placeholder="0"
-          className={cn(
-            "w-full pl-7 pr-3 py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-200 rounded-lg",
-            "focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]",
-            "transition-colors duration-150 tabular-nums"
-          )}
+          className={cn(baseInput, "pl-7 pr-3")}
         />
       </div>
       {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
@@ -77,15 +108,17 @@ export function CurrencyInput({
   );
 }
 
+// ─── PercentInput ─────────────────────────────────────────────────────────────
+
 interface PercentInputProps {
   label: string;
-  value: number; // 0–1 decimal
+  value: number; // stored as 0–1 decimal (e.g. 0.065 = 6.5%)
   onChange: (value: number) => void;
   hint?: string;
   className?: string;
-  min?: number;
-  max?: number;
-  step?: number;
+  min?: number; // as decimal
+  max?: number; // as decimal
+  decimals?: number; // display decimal places
 }
 
 export function PercentInput({
@@ -96,29 +129,43 @@ export function PercentInput({
   className,
   min = 0,
   max = 1,
-  step = 0.001,
+  decimals = 2,
 }: PercentInputProps) {
-  const [focused, setFocused] = useState(false);
-  const [raw, setRaw] = useState("");
+  const pctValue = value * 100;
+  const [localStr, setLocalStr] = useState<string>(() =>
+    pctValue === 0 ? "" : pctValue.toFixed(decimals)
+  );
+  const isFocused = useRef(false);
 
-  const pct = value * 100;
-  const displayValue = focused ? raw : pct === 0 ? "" : pct.toFixed(1);
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalStr(pctValue === 0 ? "" : pctValue.toFixed(decimals));
+    }
+  }, [pctValue, decimals]);
 
-  const handleFocus = useCallback(() => {
-    setFocused(true);
-    setRaw(pct === 0 ? "" : pct.toFixed(1));
-  }, [pct]);
+  const handleFocus = () => {
+    isFocused.current = true;
+    setLocalStr(pctValue === 0 ? "" : pctValue.toFixed(decimals));
+  };
 
-  const handleBlur = useCallback(() => {
-    setFocused(false);
-    const parsed = parseFloat(raw) || 0;
-    const clamped = Math.min(max * 100, Math.max(min * 100, parsed));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalStr(e.target.value.replace(/[^0-9.]/g, ""));
+  };
+
+  const handleBlur = () => {
+    isFocused.current = false;
+    const parsed = parseFloat(localStr);
+    const pct = isNaN(parsed) ? 0 : parsed;
+    const clamped = Math.min(max * 100, Math.max(min * 100, pct));
     onChange(clamped / 100);
-  }, [raw, onChange, min, max]);
+    setLocalStr(clamped === 0 ? "" : clamped.toFixed(decimals));
+  };
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setRaw(e.target.value.replace(/[^0-9.]/g, ""));
-  }, []);
+  const displayValue = isFocused.current
+    ? localStr
+    : pctValue === 0
+    ? ""
+    : pctValue.toFixed(decimals);
 
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -133,14 +180,10 @@ export function PercentInput({
           onFocus={handleFocus}
           onBlur={handleBlur}
           onChange={handleChange}
-          placeholder="0.0"
-          className={cn(
-            "w-full pl-3 pr-7 py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-200 rounded-lg",
-            "focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]",
-            "transition-colors duration-150 tabular-nums"
-          )}
+          placeholder="0.00"
+          className={cn(baseInput, "pl-3 pr-7")}
         />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium pointer-events-none">
           %
         </span>
       </div>
@@ -148,6 +191,8 @@ export function PercentInput({
     </div>
   );
 }
+
+// ─── NumberInput ──────────────────────────────────────────────────────────────
 
 interface NumberInputProps {
   label: string;
@@ -158,6 +203,7 @@ interface NumberInputProps {
   min?: number;
   max?: number;
   suffix?: string;
+  integer?: boolean; // if true, only allow whole numbers
 }
 
 export function NumberInput({
@@ -169,17 +215,46 @@ export function NumberInput({
   min = 0,
   max,
   suffix,
+  integer = true,
 }: NumberInputProps) {
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const parsed = parseInt(e.target.value, 10);
-      if (!isNaN(parsed)) {
-        const clamped = max !== undefined ? Math.min(max, Math.max(min, parsed)) : Math.max(min, parsed);
-        onChange(clamped);
-      }
-    },
-    [onChange, min, max]
+  const [localStr, setLocalStr] = useState<string>(() =>
+    value === 0 ? "" : String(value)
   );
+  const isFocused = useRef(false);
+
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalStr(value === 0 ? "" : String(value));
+    }
+  }, [value]);
+
+  const handleFocus = () => {
+    isFocused.current = true;
+    setLocalStr(value === 0 ? "" : String(value));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = integer
+      ? e.target.value.replace(/[^0-9]/g, "")
+      : e.target.value.replace(/[^0-9.]/g, "");
+    setLocalStr(raw);
+  };
+
+  const handleBlur = () => {
+    isFocused.current = false;
+    const parsed = integer ? parseInt(localStr, 10) : parseFloat(localStr);
+    let committed = isNaN(parsed) ? 0 : parsed;
+    committed = Math.max(min, committed);
+    if (max !== undefined) committed = Math.min(max, committed);
+    onChange(committed);
+    setLocalStr(committed === 0 ? "" : String(committed));
+  };
+
+  const displayValue = isFocused.current
+    ? localStr
+    : value === 0
+    ? ""
+    : String(value);
 
   return (
     <div className={cn("space-y-1.5", className)}>
@@ -188,20 +263,17 @@ export function NumberInput({
       </label>
       <div className="relative">
         <input
-          type="number"
-          value={value}
+          type="text"
+          inputMode={integer ? "numeric" : "decimal"}
+          value={displayValue}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onChange={handleChange}
-          min={min}
-          max={max}
-          className={cn(
-            "w-full pl-3 pr-3 py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-200 rounded-lg",
-            "focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]",
-            "transition-colors duration-150 tabular-nums",
-            suffix && "pr-10"
-          )}
+          placeholder="0"
+          className={cn(baseInput, "pl-3", suffix ? "pr-10" : "pr-3")}
         />
         {suffix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">
             {suffix}
           </span>
         )}
@@ -210,6 +282,8 @@ export function NumberInput({
     </div>
   );
 }
+
+// ─── SectionCard ──────────────────────────────────────────────────────────────
 
 interface SectionCardProps {
   title: string;

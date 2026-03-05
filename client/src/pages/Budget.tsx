@@ -1,6 +1,9 @@
 /**
  * Budget Periods — Life-stage budget editor
  * Design: "Horizon" — Warm Modernist Financial Planning
+ *
+ * All numeric inputs use local string state so the user can freely delete
+ * characters without the field snapping back. Values commit on blur.
  */
 
 import { usePlanner } from "@/contexts/PlannerContext";
@@ -8,7 +11,7 @@ import { formatCurrency } from "@/lib/format";
 import { getBudgetMonthlyTotal } from "@/lib/projection";
 import { cn } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const PERIOD_COLORS = [
   "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -18,6 +21,114 @@ const PERIOD_COLORS = [
   "bg-rose-100 text-rose-800 border-rose-200",
   "bg-teal-100 text-teal-800 border-teal-200",
 ];
+
+// ─── Small inline numeric cell with local string state ────────────────────────
+interface NumericCellProps {
+  value: number;
+  onChange: (v: number) => void;
+  className?: string;
+}
+
+function NumericCell({ value, onChange, className }: NumericCellProps) {
+  const [localStr, setLocalStr] = useState<string>(() =>
+    value === 0 ? "" : String(value)
+  );
+  const isFocused = useRef(false);
+
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalStr(value === 0 ? "" : String(value));
+    }
+  }, [value]);
+
+  const handleFocus = () => {
+    isFocused.current = true;
+    setLocalStr(value === 0 ? "" : String(value));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalStr(e.target.value.replace(/[^0-9.]/g, ""));
+  };
+
+  const handleBlur = () => {
+    isFocused.current = false;
+    const parsed = parseFloat(localStr);
+    const committed = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    onChange(committed);
+    setLocalStr(committed === 0 ? "" : String(committed));
+  };
+
+  const displayValue = isFocused.current
+    ? localStr
+    : value === 0
+    ? ""
+    : String(value);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={displayValue}
+      placeholder="0"
+      onFocus={handleFocus}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+}
+
+// ─── Inline age input with local string state ─────────────────────────────────
+interface AgeInputProps {
+  value: number;
+  onChange: (v: number) => void;
+  className?: string;
+}
+
+function AgeInput({ value, onChange, className }: AgeInputProps) {
+  const [localStr, setLocalStr] = useState<string>(() =>
+    value === 0 ? "" : String(value)
+  );
+  const isFocused = useRef(false);
+
+  useEffect(() => {
+    if (!isFocused.current) {
+      setLocalStr(value === 0 ? "" : String(value));
+    }
+  }, [value]);
+
+  const handleFocus = () => {
+    isFocused.current = true;
+    setLocalStr(value === 0 ? "" : String(value));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalStr(e.target.value.replace(/[^0-9]/g, ""));
+  };
+
+  const handleBlur = () => {
+    isFocused.current = false;
+    const parsed = parseInt(localStr, 10);
+    const committed = isNaN(parsed) ? 0 : Math.max(0, parsed);
+    onChange(committed);
+    setLocalStr(committed === 0 ? "" : String(committed));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={isFocused.current ? localStr : value === 0 ? "" : String(value)}
+      placeholder="0"
+      onFocus={handleFocus}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Budget() {
   const { inputs, updateInput } = usePlanner();
@@ -140,12 +251,9 @@ export default function Budget() {
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
                   Start Age
                 </label>
-                <input
-                  type="number"
+                <AgeInput
                   value={activePeriod.startAge}
-                  onChange={(e) =>
-                    updatePeriodStartAge(activePeriodIdx, parseInt(e.target.value, 10) || 0)
-                  }
+                  onChange={(age) => updatePeriodStartAge(activePeriodIdx, age)}
                   className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
                 />
               </div>
@@ -165,11 +273,15 @@ export default function Budget() {
         {/* Line items */}
         <div className="divide-y divide-slate-50">
           {/* Column headers */}
-          <div className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
-            style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}>
+          <div
+            className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
+            style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}
+          >
             <span>Expense</span>
             {budgetPeriods.map((p, i) => (
-              <span key={i} className="text-center truncate px-1">{p.name.split(" ")[0]}</span>
+              <span key={i} className="text-center truncate px-1">
+                {p.name.split(" ")[0]}
+              </span>
             ))}
             <span></span>
           </div>
@@ -188,20 +300,13 @@ export default function Budget() {
               />
               {budgetPeriods.map((_, periodIdx) => (
                 <div key={periodIdx} className="px-1">
-                  <input
-                    type="number"
+                  <NumericCell
                     value={item.amounts[periodIdx] ?? 0}
-                    onChange={(e) =>
-                      updateItemAmount(
-                        itemIdx,
-                        periodIdx,
-                        parseFloat(e.target.value) || 0
-                      )
-                    }
+                    onChange={(v) => updateItemAmount(itemIdx, periodIdx, v)}
                     className={cn(
-                      "w-full text-xs text-right tabular-nums px-1.5 py-1 rounded border transition-colors",
+                      "w-full text-xs text-right tabular-nums px-1.5 py-1 rounded border transition-colors focus:outline-none",
                       periodIdx === activePeriodIdx
-                        ? "bg-[#1B4332]/5 border-[#1B4332]/20 text-slate-800 font-semibold"
+                        ? "bg-[#1B4332]/5 border-[#1B4332]/20 text-slate-800 font-semibold focus:border-[#1B4332]"
                         : "bg-transparent border-transparent text-slate-400 focus:bg-white focus:border-slate-200"
                     )}
                   />
