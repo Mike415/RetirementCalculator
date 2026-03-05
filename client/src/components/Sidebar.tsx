@@ -54,7 +54,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { path: "/accounts",        label: "Accounts",         icon: PiggyBank   },
       { path: "/income",          label: "Income & Taxes",   icon: DollarSign  },
-      { path: "/income-phases",    label: "Income Phases",    icon: Briefcase   },
+      { path: "/alt-income",    label: "Alternative Income",    icon: Briefcase   },
       { path: "/home",            label: "Home & Mortgage",  icon: Home        },
       { path: "/assumptions",     label: "Assumptions",      icon: Settings2   },
       { path: "/budget",          label: "Budget Periods",   icon: BookOpen    },

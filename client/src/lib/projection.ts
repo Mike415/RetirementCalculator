@@ -108,7 +108,8 @@ export interface ProjectionRow {
   drawFromIRA: boolean;
 
   // Financials
-  income: number;
+  income: number;              // total effective income (base + all active alternative income)
+  additionalPhaseIncome: number; // sum of all active alternative income streams this year
   socialSecurityIncome: number;
   oneTimeEventAmount: number;   // net one-time event cash flow this year
   annualExpenses: number;
@@ -436,6 +437,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       drawFromRothIRA,
       drawFromIRA,
       income,
+      additionalPhaseIncome,
       socialSecurityIncome,
       oneTimeEventAmount,
       annualExpenses,

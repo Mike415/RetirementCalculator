@@ -21,7 +21,7 @@ import Assumptions from "./pages/Assumptions";
 import Budget from "./pages/Budget";
 import Projections from "./pages/Projections";
 import SocialSecurity from "./pages/SocialSecurity";
-import IncomePhases from "./pages/IncomePhases";
+import AlternativeIncome from "./pages/AlternativeIncome";
 import OneTimeEvents from "./pages/OneTimeEvents";
 import Scenarios from "./pages/Scenarios";
 import NotFound from "./pages/NotFound";
@@ -75,7 +75,7 @@ function PlannerApp() {
               <Route path="/overview" component={Overview} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/income" component={Income} />
-              <Route path="/income-phases" component={IncomePhases} />
+              <Route path="/alt-income" component={AlternativeIncome} />
               <Route path="/home" component={HomeMortgage} />
               <Route path="/assumptions" component={Assumptions} />
               <Route path="/budget" component={Budget} />

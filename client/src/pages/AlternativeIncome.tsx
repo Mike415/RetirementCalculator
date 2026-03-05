@@ -1,5 +1,5 @@
 /**
- * Income Phases — Define additional income streams active for specific age ranges
+ * Alternative Income — Define additional income streams active for specific age ranges
  * Design: "Horizon" — Warm Modernist Financial Planning
  *
  * Income phases are ADDITIVE — they add on top of the base income from the
@@ -71,7 +71,7 @@ export default function IncomePhases() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Income Phases</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Alternative Income</h1>
         <p className="text-sm text-slate-500 mt-1">
           Define additional income streams that are active for specific age ranges — a spouse's
           income, rental income, consulting, a side business, or a pension. These are{" "}
@@ -130,7 +130,7 @@ export default function IncomePhases() {
 
       {/* Phase list */}
       <SectionCard
-        title="Income Phases"
+        title="Alternative Income"
         description={
           phases.length === 0
             ? "No income phases defined. Add one above or click the button below."

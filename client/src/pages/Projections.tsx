@@ -132,6 +132,9 @@ export default function Projections() {
                       Income
                     </th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Alt Income
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
                       SS Income
                     </th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
@@ -264,6 +267,9 @@ export default function Projections() {
                       <>
                         <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-medium">
                           {row.income > 0 ? formatCurrency(row.income, true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-teal-600 font-medium">
+                          {row.additionalPhaseIncome > 0 ? formatCurrency(row.additionalPhaseIncome, true) : "—"}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-blue-600 font-medium">
                           {row.socialSecurityIncome > 0 ? formatCurrency(row.socialSecurityIncome, true) : "—"}
