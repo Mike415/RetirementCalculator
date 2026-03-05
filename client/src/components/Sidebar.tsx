@@ -14,6 +14,7 @@ import {
   BookOpen,
   CalendarClock,
   DollarSign,
+  Download,
   GitCompare,
   Home,
   PiggyBank,
@@ -21,8 +22,10 @@ import {
   Settings2,
   ShieldCheck,
   TrendingUp,
+  Upload,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 
 interface NavItem {
@@ -65,9 +68,10 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ className, onNavigate }: SidebarProps) {
-  const { resetToDefaults, inputs } = usePlanner();
+  const { resetToDefaults, exportPlan, importPlan, inputs } = usePlanner();
   const [location] = useLocation();
   const [confirming, setConfirming] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleReset = () => {
     if (!confirming) {
@@ -76,6 +80,18 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
     } else {
       resetToDefaults();
       setConfirming(false);
+    }
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ""; // reset so same file can be re-imported
+    const result = await importPlan(file);
+    if (result.ok) {
+      toast.success("Plan imported successfully!");
+    } else {
+      toast.error(result.error ?? "Import failed.");
     }
   };
 
@@ -159,7 +175,33 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-white/10 space-y-3">
+      <div className="px-4 py-4 border-t border-white/10 space-y-1.5">
+        {/* Export */}
+        <button
+          onClick={exportPlan}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
+        >
+          <Download className="w-3.5 h-3.5 flex-shrink-0" />
+          Export plan (.json)
+        </button>
+
+        {/* Import */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
+        >
+          <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+          Import plan (.json)
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={handleImport}
+        />
+
+        {/* Reset */}
         <button
           onClick={handleReset}
           className={cn(
@@ -172,7 +214,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
           {confirming ? "Click again to confirm reset" : "Reset to defaults"}
         </button>
-        <p className="text-[10px] text-white/25 leading-relaxed px-1">
+
+        <p className="text-[10px] text-white/25 leading-relaxed px-1 pt-1">
           Values auto-saved. All projections are estimates.
         </p>
       </div>

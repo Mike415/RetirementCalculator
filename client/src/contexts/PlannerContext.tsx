@@ -91,6 +91,8 @@ interface PlannerContextValue {
   setInputs: Dispatch<SetStateAction<RetirementInputs>>;
   updateInput: <K extends keyof RetirementInputs>(key: K, value: RetirementInputs[K]) => void;
   resetToDefaults: () => void;
+  exportPlan: () => void;
+  importPlan: (file: File) => Promise<{ ok: boolean; error?: string }>;
   projection: ProjectionRow[];
 }
 
@@ -116,6 +118,53 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     setInputs(DEFAULT_INPUTS);
   }, []);
 
+  // ── Export: download current inputs as a JSON file ──────────────────────────
+  const exportPlan = useCallback(() => {
+    const payload = {
+      _version: 1,
+      _exported: new Date().toISOString(),
+      inputs,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    // Filename: retirement-plan-YYYY-MM-DD.json
+    const date = new Date().toISOString().slice(0, 10);
+    a.download = `retirement-plan-${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [inputs]);
+
+  // ── Import: read a JSON file and load inputs (with schema-safe merge) ────────
+  const importPlan = useCallback((file: File): Promise<{ ok: boolean; error?: string }> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          const parsed = JSON.parse(text);
+          // Accept either { inputs: {...} } wrapper or a raw RetirementInputs object
+          const raw: Partial<RetirementInputs> =
+            parsed?.inputs && typeof parsed.inputs === "object"
+              ? parsed.inputs
+              : parsed;
+          if (typeof raw !== "object" || raw === null) {
+            resolve({ ok: false, error: "Invalid file format." });
+            return;
+          }
+          const merged = mergeWithDefaults(raw);
+          setInputs(merged);
+          resolve({ ok: true });
+        } catch {
+          resolve({ ok: false, error: "Could not parse file. Make sure it is a valid retirement plan JSON." });
+        }
+      };
+      reader.onerror = () => resolve({ ok: false, error: "Failed to read file." });
+      reader.readAsText(file);
+    });
+  }, []);
+
   const projection = useMemo(() => {
     try {
       return runProjection(inputs);
@@ -127,7 +176,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PlannerContext.Provider
-      value={{ inputs, setInputs, updateInput, resetToDefaults, projection }}
+      value={{ inputs, setInputs, updateInput, resetToDefaults, exportPlan, importPlan, projection }}
     >
       {children}
     </PlannerContext.Provider>
