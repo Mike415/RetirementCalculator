@@ -369,9 +369,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         effectiveNeed = effectiveNeed * (1 - ws.guardrailCut);
       }
     }
-    // RMD adds to need if it exceeds normal withdrawal
+    // RMD: must withdraw at least rmdRequired from tax-deferred accounts.
+    // Excess above spending need is reinvested into taxable investments (not spent).
     const totalNeedWithRMD = Math.max(effectiveNeed, rmdRequired);
-    const actualSpend = retired ? totalNeedWithRMD : 0;
+    const rmdOverflow = retired ? Math.max(0, rmdRequired - effectiveNeed) : 0;
+    const actualSpend = retired ? effectiveNeed : 0;
 
     // ── Ordered withdrawal: draw from accounts in configured priority ──
     // Each account grows at investmentGrowthRate first, then we subtract the draw.
@@ -446,7 +448,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else {
-      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + oneTimeToInvestments;
+      // rmdOverflow: excess RMD above spending need is reinvested into taxable investments
+      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + oneTimeToInvestments + rmdOverflow;
     }
 
     // ── 401K ──
