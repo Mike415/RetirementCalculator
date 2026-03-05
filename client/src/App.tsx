@@ -2,11 +2,14 @@
  * Retirement Planner — Main App
  * Design: "Horizon" — Warm Modernist Financial Planning
  * Forest green sidebar, warm off-white content, Playfair Display headings
+ *
+ * Routing: each page has its own URL path so it survives refresh and
+ * can be bookmarked or linked to directly.
  */
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { PlannerProvider, usePlanner } from "@/contexts/PlannerContext";
+import { PlannerProvider } from "@/contexts/PlannerContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Sidebar from "./components/Sidebar";
@@ -17,26 +20,14 @@ import HomeMortgage from "./pages/HomeMortgage";
 import Assumptions from "./pages/Assumptions";
 import Budget from "./pages/Budget";
 import Projections from "./pages/Projections";
+import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Route, Switch, Redirect } from "wouter";
 
 function PlannerApp() {
-  const { activeTab } = usePlanner();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const renderPage = () => {
-    switch (activeTab) {
-      case "overview": return <Overview />;
-      case "accounts": return <Accounts />;
-      case "income": return <Income />;
-      case "home": return <HomeMortgage />;
-      case "assumptions": return <Assumptions />;
-      case "budget": return <Budget />;
-      case "projections": return <Projections />;
-      default: return <Overview />;
-    }
-  };
 
   return (
     <div className="flex h-screen bg-[#FAFAF8] overflow-hidden">
@@ -55,7 +46,7 @@ function PlannerApp() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <Sidebar className="h-full" />
+        <Sidebar className="h-full" onNavigate={() => setSidebarOpen(false)} />
       </div>
 
       {/* Main content */}
@@ -74,7 +65,17 @@ function PlannerApp() {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-            {renderPage()}
+            <Switch>
+              <Route path="/" component={() => <Redirect to="/overview" />} />
+              <Route path="/overview" component={Overview} />
+              <Route path="/accounts" component={Accounts} />
+              <Route path="/income" component={Income} />
+              <Route path="/home" component={HomeMortgage} />
+              <Route path="/assumptions" component={Assumptions} />
+              <Route path="/budget" component={Budget} />
+              <Route path="/projections" component={Projections} />
+              <Route component={NotFound} />
+            </Switch>
           </div>
         </main>
       </div>

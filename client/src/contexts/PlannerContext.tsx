@@ -8,7 +8,7 @@
  * saved data (schema-safe).
  */
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Dispatch, SetStateAction, createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   BudgetItem,
   BudgetPeriod,
@@ -82,12 +82,10 @@ function saveToStorage(inputs: RetirementInputs) {
 
 interface PlannerContextValue {
   inputs: RetirementInputs;
-  setInputs: React.Dispatch<React.SetStateAction<RetirementInputs>>;
+  setInputs: Dispatch<SetStateAction<RetirementInputs>>;
   updateInput: <K extends keyof RetirementInputs>(key: K, value: RetirementInputs[K]) => void;
   resetToDefaults: () => void;
   projection: ProjectionRow[];
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
 }
 
 const PlannerContext = createContext<PlannerContextValue | null>(null);
@@ -95,7 +93,6 @@ const PlannerContext = createContext<PlannerContextValue | null>(null);
 export function PlannerProvider({ children }: { children: React.ReactNode }) {
   // Load from localStorage on first render (lazy initializer)
   const [inputs, setInputs] = useState<RetirementInputs>(loadFromStorage);
-  const [activeTab, setActiveTab] = useState("overview");
 
   // Persist to localStorage whenever inputs change
   useEffect(() => {
@@ -124,7 +121,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PlannerContext.Provider
-      value={{ inputs, setInputs, updateInput, resetToDefaults, projection, activeTab, setActiveTab }}
+      value={{ inputs, setInputs, updateInput, resetToDefaults, projection }}
     >
       {children}
     </PlannerContext.Provider>
