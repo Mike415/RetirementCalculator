@@ -1,24 +1,31 @@
 /**
  * CloudSync Component
  * ───────────────────
- * Provides GitHub Gist cloud sync via Device Flow OAuth.
- * Renders as a collapsible panel in the Sidebar.
+ * Provides GitHub Gist cloud sync using a Personal Access Token (PAT).
+ *
+ * Why PAT instead of Device Flow OAuth:
+ *   GitHub's Device Flow endpoints (github.com/login/device/code and
+ *   github.com/login/oauth/access_token) block cross-origin requests from
+ *   browsers, so Device Flow cannot work in a static web app.
+ *   A PAT with the "gist" scope is the simplest, most reliable alternative.
  *
  * Flow:
- *   1. User clicks "Connect GitHub"
- *   2. Device code requested → user_code shown + verification_uri opened
- *   3. Poll until user approves → token stored
+ *   1. User creates a GitHub PAT with "gist" scope at github.com/settings/tokens
+ *   2. User pastes the token into the input field
+ *   3. Token is validated by fetching /user, then stored in localStorage
  *   4. Save / Load buttons appear
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Cloud, CloudDownload, CloudUpload, LogOut, Loader2, CheckCircle, AlertCircle, Github, Copy, ExternalLink } from 'lucide-react';
+import {
+  Cloud, CloudDownload, CloudUpload, LogOut, Loader2,
+  AlertCircle, ExternalLink, KeyRound, Eye, EyeOff,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { usePlanner } from '@/contexts/PlannerContext';
 import {
-  requestDeviceCode,
-  pollForToken,
   getAuthenticatedUser,
   saveToGist,
   loadFromGist,
@@ -38,10 +45,10 @@ export default function CloudSync() {
   const [token, setToken] = useState<string | null>(() => getStoredToken());
   const [user, setUser] = useState<UserInfo | null>(null);
   const [status, setStatus] = useState<
-    'idle' | 'requesting' | 'polling' | 'saving' | 'loading' | 'error'
+    'idle' | 'connecting' | 'saving' | 'loading' | 'error'
   >('idle');
-  const [userCode, setUserCode] = useState<string>('');
-  const [verificationUri, setVerificationUri] = useState<string>('');
+  const [patInput, setPatInput] = useState('');
+  const [showPat, setShowPat] = useState(false);
   const [lastSynced, setLastSynced] = useState<string | null>(
     () => localStorage.getItem('gh_gist_last_synced')
   );
@@ -63,32 +70,26 @@ export default function CloudSync() {
       });
   }, [token]);
 
-  const startDeviceFlow = useCallback(async () => {
-    setStatus('requesting');
-    try {
-      const deviceData = await requestDeviceCode();
-      setUserCode(deviceData.user_code);
-      setVerificationUri(deviceData.verification_uri);
-      setStatus('polling');
-
-      // Open the verification page
-      window.open(deviceData.verification_uri, '_blank', 'noopener,noreferrer');
-
-      // Poll for token
-      const accessToken = await pollForToken(deviceData.device_code, deviceData.interval);
-      setStoredToken(accessToken);
-      setToken(accessToken);
-      setStatus('idle');
-      setUserCode('');
-      setVerificationUri('');
-      toast.success('Connected to GitHub successfully!');
-    } catch (err: unknown) {
-      setStatus('error');
-      const message = err instanceof Error ? err.message : 'Authorization failed';
-      toast.error(message);
-      setTimeout(() => setStatus('idle'), 3000);
+  const handleConnect = useCallback(async () => {
+    const pat = patInput.trim();
+    if (!pat) {
+      toast.error('Please enter a Personal Access Token.');
+      return;
     }
-  }, []);
+    setStatus('connecting');
+    try {
+      const userInfo = await getAuthenticatedUser(pat);
+      setStoredToken(pat);
+      setToken(pat);
+      setUser(userInfo);
+      setPatInput('');
+      setStatus('idle');
+      toast.success(`Connected as @${userInfo.login}`);
+    } catch {
+      setStatus('idle');
+      toast.error('Invalid token or missing "gist" scope. Please check your PAT.');
+    }
+  }, [patInput]);
 
   const handleSave = useCallback(async () => {
     if (!token) return;
@@ -144,12 +145,7 @@ export default function CloudSync() {
     toast.success('Signed out of GitHub.');
   }, []);
 
-  const copyUserCode = useCallback(() => {
-    navigator.clipboard.writeText(userCode);
-    toast.success('Code copied!');
-  }, [userCode]);
-
-  const isBusy = status === 'saving' || status === 'loading' || status === 'requesting';
+  const isBusy = status === 'saving' || status === 'loading' || status === 'connecting';
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -160,10 +156,9 @@ export default function CloudSync() {
       >
         <Cloud className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="text-xs font-medium text-foreground flex-1">Cloud Sync</span>
-        {token && user && (
+        {token && user ? (
           <span className="text-xs text-emerald-600 font-medium">● Connected</span>
-        )}
-        {!token && (
+        ) : (
           <span className="text-xs text-muted-foreground">GitHub Gist</span>
         )}
       </button>
@@ -171,79 +166,64 @@ export default function CloudSync() {
       {/* Body */}
       {expanded && (
         <div className="px-3 py-3 space-y-3 bg-background">
+
           {/* Not connected */}
-          {!token && status !== 'polling' && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Save your plan to a private GitHub Gist — accessible from any device, no account required beyond GitHub.
-              </p>
-              <Button
-                size="sm"
-                className="w-full gap-2"
-                onClick={startDeviceFlow}
-                disabled={isBusy}
-              >
-                {status === 'requesting' ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Github className="h-3.5 w-3.5" />
-                )}
-                {status === 'requesting' ? 'Requesting…' : 'Connect GitHub'}
-              </Button>
-            </div>
-          )}
-
-          {/* Polling — show user code */}
-          {status === 'polling' && (
+          {!token && (
             <div className="space-y-3">
-              <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin mt-0.5 shrink-0 text-primary" />
-                <span>Waiting for you to authorize on GitHub…</span>
-              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Save your plan to a private GitHub Gist. Create a{' '}
+                <a
+                  href="https://github.com/settings/tokens/new?scopes=gist&description=Retirement+Planner+Sync"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline inline-flex items-center gap-0.5"
+                >
+                  Personal Access Token
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+                {' '}with the <code className="bg-muted px-1 rounded text-xs">gist</code> scope.
+              </p>
 
-              <div className="bg-muted rounded-md p-3 space-y-2">
-                <p className="text-xs text-muted-foreground">Enter this code at GitHub:</p>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-lg font-bold tracking-widest text-foreground">
-                    {userCode}
-                  </span>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    type={showPat ? 'text' : 'password'}
+                    placeholder="ghp_xxxxxxxxxxxx"
+                    value={patInput}
+                    onChange={(e) => setPatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+                    className="text-xs pr-8 font-mono"
+                    disabled={isBusy}
+                  />
                   <button
-                    onClick={copyUserCode}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    title="Copy code"
+                    type="button"
+                    onClick={() => setShowPat((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    {showPat ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
+
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  onClick={handleConnect}
+                  disabled={isBusy || !patInput.trim()}
+                >
+                  {status === 'connecting' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-3.5 w-3.5" />
+                  )}
+                  {status === 'connecting' ? 'Connecting…' : 'Connect'}
+                </Button>
               </div>
-
-              <a
-                href={verificationUri}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Open {verificationUri}
-              </a>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setStatus('idle');
-                  setUserCode('');
-                  setVerificationUri('');
-                }}
-              >
-                Cancel
-              </Button>
             </div>
           )}
 
           {/* Connected */}
-          {token && user && status !== 'polling' && (
+          {token && user && (
             <div className="space-y-3">
               {/* User info */}
               <div className="flex items-center gap-2">
@@ -311,7 +291,7 @@ export default function CloudSync() {
           {status === 'error' && (
             <div className="flex items-center gap-2 text-xs text-destructive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              <span>Authorization failed. Please try again.</span>
+              <span>Connection failed. Please try again.</span>
             </div>
           )}
         </div>

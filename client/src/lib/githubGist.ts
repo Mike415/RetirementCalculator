@@ -1,42 +1,26 @@
 /**
  * GitHub Gist Cloud Sync
  * ─────────────────────
- * Uses GitHub Device Flow OAuth (no server required) to authenticate,
- * then reads/writes the retirement plan as a private GitHub Gist.
+ * Uses a GitHub Personal Access Token (PAT) with the "gist" scope to
+ * read/write the retirement plan as a private GitHub Gist.
  *
- * Device Flow:
- *   1. POST /login/device/code  → get device_code + user_code + verification_uri
- *   2. Show user_code to user, open verification_uri
- *   3. Poll /login/oauth/access_token until user approves
- *   4. Store access_token in localStorage
- *   5. Use token to read/write Gist via GitHub API
+ * Why PAT instead of OAuth Device Flow:
+ *   GitHub's Device Flow endpoints block CORS from browser origins, so
+ *   Device Flow cannot work in a static web app. A PAT is the simplest
+ *   and most reliable alternative for a static site.
+ *
+ * Setup:
+ *   1. Go to https://github.com/settings/tokens/new
+ *   2. Give it a name (e.g. "Retirement Planner Sync")
+ *   3. Check the "gist" scope
+ *   4. Copy the generated token (starts with ghp_)
+ *   5. Paste it into the Cloud Sync panel in the app
  */
 
-const CLIENT_ID = 'Ov23lieK4mityKxMPPlN';
 const GIST_FILENAME = 'retirement-plan.json';
 const GIST_DESCRIPTION = 'Retirement Planner — saved plan';
 const TOKEN_KEY = 'gh_gist_token';
 const GIST_ID_KEY = 'gh_gist_id';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export interface DeviceCodeResponse {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_in: number;
-  interval: number;
-}
-
-export interface GistSyncState {
-  status: 'idle' | 'pending_auth' | 'polling' | 'authenticated' | 'saving' | 'loading' | 'error';
-  userCode?: string;
-  verificationUri?: string;
-  errorMessage?: string;
-  username?: string;
-  avatarUrl?: string;
-  lastSynced?: string; // ISO timestamp
-}
 
 // ── Token storage ─────────────────────────────────────────────────────────────
 
@@ -77,96 +61,6 @@ async function githubFetch(
       'Content-Type': 'application/json',
       ...(options.headers ?? {}),
     },
-  });
-}
-
-// ── Device Flow ───────────────────────────────────────────────────────────────
-
-/**
- * Step 1: Request a device code from GitHub.
- * Returns the device_code (for polling), user_code (show to user),
- * verification_uri (send user to), and polling interval.
- */
-export async function requestDeviceCode(): Promise<DeviceCodeResponse> {
-  const res = await fetch('https://github.com/login/device/code', {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      client_id: CLIENT_ID,
-      scope: 'gist',
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to request device code: ${res.status}`);
-  }
-
-  return res.json();
-}
-
-/**
- * Step 2: Poll GitHub until the user approves the device code.
- * Resolves with the access token when approved.
- * Rejects if expired or denied.
- */
-export async function pollForToken(
-  deviceCode: string,
-  intervalSeconds: number,
-  onPoll?: () => void
-): Promise<string> {
-  const pollInterval = Math.max(intervalSeconds, 5) * 1000;
-
-  return new Promise((resolve, reject) => {
-    const poll = async () => {
-      onPoll?.();
-      try {
-        const res = await fetch('https://github.com/login/oauth/access_token', {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            client_id: CLIENT_ID,
-            device_code: deviceCode,
-            grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-          }),
-        });
-
-        const data = await res.json();
-
-        if (data.access_token) {
-          resolve(data.access_token);
-          return;
-        }
-
-        switch (data.error) {
-          case 'authorization_pending':
-            // User hasn't approved yet — keep polling
-            setTimeout(poll, pollInterval);
-            break;
-          case 'slow_down':
-            // GitHub wants us to slow down
-            setTimeout(poll, pollInterval + 5000);
-            break;
-          case 'expired_token':
-            reject(new Error('The authorization code expired. Please try again.'));
-            break;
-          case 'access_denied':
-            reject(new Error('Authorization was denied.'));
-            break;
-          default:
-            reject(new Error(data.error_description ?? 'Unknown error during authorization.'));
-        }
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    setTimeout(poll, pollInterval);
   });
 }
 
