@@ -12,9 +12,11 @@ import {
   DollarSign,
   Home,
   PiggyBank,
+  RotateCcw,
   Settings2,
   TrendingUp,
 } from "lucide-react";
+import { useState } from "react";
 
 const NAV_ITEMS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -31,7 +33,18 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ className }: SidebarProps) {
-  const { activeTab, setActiveTab } = usePlanner();
+  const { activeTab, setActiveTab, resetToDefaults } = usePlanner();
+  const [confirming, setConfirming] = useState(false);
+
+  const handleReset = () => {
+    if (!confirming) {
+      setConfirming(true);
+      setTimeout(() => setConfirming(false), 3000);
+    } else {
+      resetToDefaults();
+      setConfirming(false);
+    }
+  };
 
   return (
     <aside
@@ -84,9 +97,21 @@ export default function Sidebar({ className }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-6 py-4 border-t border-white/10">
-        <p className="text-[10px] text-white/30 leading-relaxed">
-          All projections are estimates. Consult a financial advisor for personalized advice.
+      <div className="px-4 py-4 border-t border-white/10 space-y-3">
+        <button
+          onClick={handleReset}
+          className={cn(
+            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150",
+            confirming
+              ? "bg-red-500/20 text-red-300 hover:bg-red-500/30"
+              : "text-white/40 hover:bg-white/8 hover:text-white/70"
+          )}
+        >
+          <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
+          {confirming ? "Click again to confirm reset" : "Reset to defaults"}
+        </button>
+        <p className="text-[10px] text-white/25 leading-relaxed px-1">
+          Values auto-saved. All projections are estimates.
         </p>
       </div>
     </aside>
