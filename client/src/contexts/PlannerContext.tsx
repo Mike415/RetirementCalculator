@@ -40,10 +40,10 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.socialSecurityMonthly === undefined) base.socialSecurityMonthly = DEFAULT_INPUTS.socialSecurityMonthly;
   if (!Array.isArray(base.oneTimeEvents)) base.oneTimeEvents = DEFAULT_INPUTS.oneTimeEvents;
   if (!Array.isArray(base.incomePhases)) base.incomePhases = DEFAULT_INPUTS.incomePhases;
-  // Validate each income phase has required fields
-  base.incomePhases = (base.incomePhases as IncomePhase[]).filter(
+  // Validate each income phase has required fields; strip legacy continuesInRetirement field
+  base.incomePhases = (base.incomePhases as (IncomePhase & { continuesInRetirement?: unknown })[]).filter(
     (p) => p && typeof p.id === 'string' && typeof p.startAge === 'number'
-  );
+  ).map(({ continuesInRetirement: _removed, ...p }) => p as IncomePhase);
   // New contribution fields added in audit fix
   if (base.k401Contribution === undefined) base.k401Contribution = DEFAULT_INPUTS.k401Contribution;
   if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;

@@ -25,12 +25,11 @@ export interface BudgetItem {
 
 export interface IncomePhase {
   id: string;
-  startAge: number;           // age at which this income phase begins
-  endAge?: number;            // optional age at which this income phase ends (inclusive)
-  annualIncome: number;       // gross income at the start of this phase
-  growthRate: number;         // annual growth rate while in this phase (e.g. 0.03)
-  continuesInRetirement: boolean; // if true, income persists even after retirementAge
-  label: string;              // e.g. "Spouse returns to work", "Consulting"
+  startAge: number;           // age at which this additional income begins
+  endAge?: number;            // optional age at which this income ends (inclusive)
+  annualIncome: number;       // additional annual income at the start of this phase
+  growthRate: number;         // annual growth rate for this income stream (e.g. 0.03)
+  label: string;              // e.g. "Spouse income", "Consulting", "Rental income"
 }
 
 export interface OneTimeEvent {
@@ -224,9 +223,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   let prevRothIRA = currentRothIRA;
   let prevIRA = inputs.currentIRA;
   let prevIncome = currentGrossIncome;
-  // Track per-phase accumulated income (so each phase grows from its own base)
+  // Track per-phase accumulated income (each phase grows independently from its own base)
   // Key: phase id, Value: current income level within that phase
   const phaseIncomeLevels: Record<string, number> = {};
+  // Sort phases once (used inside the loop)
+  const sortedPhases = [...incomePhases].sort((a, b) => a.startAge - b.startAge);
 
   const totalMortgageMonths = mortgageTotalYears * 12;
 
@@ -240,23 +241,22 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // Use >= so the person retires IN the configured year (age 65 = first retired year)
     const retired = age >= retirementAge;
 
-    // ── Income Phase Resolution ──
-    // Find the active income phase for this age (last phase whose startAge <= age)
-    const sortedPhases = [...incomePhases].sort((a, b) => a.startAge - b.startAge);
-    let activePhase: IncomePhase | null = null;
+    // ── Income Phase Resolution (ADDITIVE) ──
+    // Sum all phases whose age range covers the current age.
+    // Each active phase adds on top of the base income — they never replace it.
+    let additionalPhaseIncome = 0;
     for (const phase of sortedPhases) {
-      if (age >= phase.startAge) activePhase = phase;
+      const inRange =
+        age >= phase.startAge &&
+        (phase.endAge === undefined || phase.endAge === null || age <= phase.endAge);
+      if (inRange) {
+        additionalPhaseIncome += phaseIncomeLevels[phase.id] ?? phase.annualIncome;
+      }
     }
-    // Determine effective income for this year
-    // A phase is active if: age >= startAge AND (no endAge OR age <= endAge)
-    // AND (not retired OR continuesInRetirement)
-    const phaseInRange = activePhase !== null &&
-      age >= activePhase.startAge &&
-      (activePhase.endAge === undefined || activePhase.endAge === null || age <= activePhase.endAge);
-    const phaseIsActive = phaseInRange && (!retired || activePhase!.continuesInRetirement);
-    const effectiveIncome = phaseIsActive
-      ? (phaseIncomeLevels[activePhase!.id] ?? activePhase!.annualIncome)
-      : (!retired ? prevIncome : 0);
+    // Base income: grows from currentGrossIncome each year pre-retirement, 0 post-retirement
+    const baseIncome = !retired ? prevIncome : 0;
+    // Total effective income = base + all active additive phases
+    const effectiveIncome = baseIncome + additionalPhaseIncome;
 
     // Budget period selection — use current age so the period switches exactly
     // at the configured startAge (e.g. startAge=38 activates when age=38).
@@ -463,17 +463,14 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     prevRoth401k = roth401k;
     prevRothIRA = rothIRA;
     prevIRA = ira;
-    // Update base income (used when no phase is active)
-    if (!retired) {
-      prevIncome = (!phaseIsActive) ? income * (1 + incomeGrowthRate) : prevIncome * (1 + incomeGrowthRate);
-    } else {
-      prevIncome = 0;
-    }
-    // Update each phase's income level (compound within the phase)
+    // Update base income (always grows pre-retirement, 0 post-retirement)
+    prevIncome = !retired ? prevIncome * (1 + incomeGrowthRate) : 0;
+    // Update each phase's income level (compound independently within the phase)
     for (const phase of sortedPhases) {
-      const inRange = age >= phase.startAge &&
+      const inRange =
+        age >= phase.startAge &&
         (phase.endAge === undefined || phase.endAge === null || age <= phase.endAge);
-      if (inRange && (!retired || phase.continuesInRetirement)) {
+      if (inRange) {
         const current = phaseIncomeLevels[phase.id] ?? phase.annualIncome;
         phaseIncomeLevels[phase.id] = current * (1 + phase.growthRate);
       }
