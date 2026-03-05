@@ -40,6 +40,19 @@ export interface OneTimeEvent {
   account: "investments" | "cash"; // which account receives/pays the event
 }
 
+// Account identifiers used in withdrawal ordering
+export type WithdrawalAccount = "cash" | "investments" | "k401" | "roth401k" | "rothIRA" | "ira";
+
+export interface WithdrawalStrategy {
+  order: WithdrawalAccount[];       // priority order — first = drawn from first
+  enforceRMD: boolean;              // force RMDs from tax-deferred accounts at age 73
+  mode: "budget" | "percent";       // budget = spend what budget says; percent = % of portfolio
+  withdrawalRate: number;           // used when mode = "percent" (e.g. 0.04)
+  guardrailEnabled: boolean;        // reduce spending if portfolio falls below threshold
+  guardrailMultiple: number;        // e.g. 15 = 15× annual spend threshold
+  guardrailCut: number;             // e.g. 0.10 = cut 10% of spending
+}
+
 export interface RetirementInputs {
   // Personal
   currentAge: number;
@@ -95,6 +108,9 @@ export interface RetirementInputs {
 
   // Budget periods
   budgetPeriods: BudgetPeriod[];
+
+  // Withdrawal strategy (used during retirement draw-down)
+  withdrawalStrategy: WithdrawalStrategy;
 }
 
 export interface ProjectionRow {
@@ -130,6 +146,16 @@ export interface ProjectionRow {
   // Budget info
   budgetPeriodName: string;
   monthlyBudget: number;
+
+  // Per-account draw amounts (retirement years only, 0 during accumulation)
+  drawCash: number;
+  drawInvestments: number;
+  drawK401: number;
+  drawRoth401k: number;
+  drawRothIRA: number;
+  drawIRA: number;
+  rmdAmount: number;  // Required Minimum Distribution enforced this year
+  actualSpend: number; // actual annual spend (may differ from budget if guardrail active)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -314,14 +340,74 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       ? Math.max(0, annualExpenses - socialSecurityIncome - additionalPhaseIncome)
       : 0;
 
-    // ── Draw priority (sequential: Investments → 401K → Roth401K → RothIRA → IRA) ──
-    const drawFromInvestments = retired && prevInvestments > 0;
-    const drawFrom401k = retired && !drawFromInvestments && prev401k > 0;
-    const drawFromRoth401k = retired && !drawFromInvestments && !drawFrom401k && prevRoth401k > 0;
-    const drawFromRothIRA =
-      retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && prevRothIRA > 0;
-    const drawFromIRA =
-      retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && !drawFromRothIRA && prevIRA > 0;
+    // ── Withdrawal strategy ──
+    const ws = inputs.withdrawalStrategy ?? {
+      order: ["cash", "investments", "k401", "roth401k", "rothIRA", "ira"] as WithdrawalAccount[],
+      enforceRMD: true, mode: "budget" as const, withdrawalRate: 0.04,
+      guardrailEnabled: false, guardrailMultiple: 15, guardrailCut: 0.10,
+    };
+
+    // ── Required Minimum Distribution (age 73+, tax-deferred accounts) ──
+    const RMD_AGE = 73;
+    // IRS Uniform Lifetime Table simplified: divisor ≈ 27.4 at 73, decreasing ~0.9/yr
+    const rmdDivisor = Math.max(1, 27.4 - Math.max(0, age - RMD_AGE) * 0.9);
+    const rmdRequired = ws.enforceRMD && retired && age >= RMD_AGE
+      ? (prev401k + prevIRA) / rmdDivisor
+      : 0;
+
+    // ── Effective annual need ──
+    let effectiveNeed = netAnnualNeed;
+    if (ws.mode === "percent" && retired) {
+      const portfolio = prevCash + prevInvestments + prev401k + prevRoth401k + prevRothIRA + prevIRA;
+      effectiveNeed = Math.max(0, portfolio * ws.withdrawalRate - socialSecurityIncome - additionalPhaseIncome);
+    }
+    // Guardrail: reduce spending if portfolio is below threshold
+    const portfolio = prevCash + prevInvestments + prev401k + prevRoth401k + prevRothIRA + prevIRA;
+    if (ws.guardrailEnabled && retired && effectiveNeed > 0) {
+      const threshold = effectiveNeed * ws.guardrailMultiple;
+      if (portfolio < threshold) {
+        effectiveNeed = effectiveNeed * (1 - ws.guardrailCut);
+      }
+    }
+    // RMD adds to need if it exceeds normal withdrawal
+    const totalNeedWithRMD = Math.max(effectiveNeed, rmdRequired);
+    const actualSpend = retired ? totalNeedWithRMD : 0;
+
+    // ── Ordered withdrawal: draw from accounts in configured priority ──
+    // Each account grows at investmentGrowthRate first, then we subtract the draw.
+    const accountBalances: Record<WithdrawalAccount, number> = {
+      cash: prevCash,
+      investments: prevInvestments,
+      k401: prev401k,
+      roth401k: prevRoth401k,
+      rothIRA: prevRothIRA,
+      ira: prevIRA,
+    };
+    const drawAmounts: Record<WithdrawalAccount, number> = {
+      cash: 0, investments: 0, k401: 0, roth401k: 0, rothIRA: 0, ira: 0,
+    };
+    let remaining = retired ? totalNeedWithRMD : 0;
+    if (retired && remaining > 0) {
+      for (const acct of ws.order) {
+        if (remaining <= 0) break;
+        const bal = accountBalances[acct];
+        if (bal <= 0) continue;
+        const draw = Math.min(bal, remaining);
+        drawAmounts[acct] = draw;
+        remaining -= draw;
+      }
+      // If still remaining (all accounts exhausted), draw from investments as fallback
+      if (remaining > 0) {
+        drawAmounts["investments"] += remaining;
+      }
+    }
+
+    // Legacy draw flags (kept for backward compat with Projections Table)
+    const drawFromInvestments = drawAmounts.investments > 0;
+    const drawFrom401k = drawAmounts.k401 > 0;
+    const drawFromRoth401k = drawAmounts.roth401k > 0;
+    const drawFromRothIRA = drawAmounts.rothIRA > 0;
+    const drawFromIRA = drawAmounts.ira > 0;
 
     // ── Income ──
     const income = effectiveIncome;
@@ -344,20 +430,13 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     }
 
     // ── Cash ──
-    const cash = Math.max(0, prevCash + oneTimeToCash);
+    const cash = Math.max(0, prevCash + oneTimeToCash - drawAmounts.cash);
 
     // ── Investments ──
     let investments: number;
     if (!retired) {
       const homeExpenses =
         (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
-      // annualMortgagePmt is the regular P&I payment (already computed above).
-      // extraMortgageMonthly is the additional principal prepayment.
-      // Both are real cash outflows that reduce investable surplus.
-      // Deduct ALL retirement contributions as cash outflows from the investable surplus:
-      //   - k401Contribution: pre-tax cash that goes into traditional 401K (reduces take-home)
-      //   - roth401kContribution + rothIRAContribution: after-tax cash into Roth accounts
-      //   - iraContribution: after-tax cash into traditional IRA
       investments =
         prevInvestments * (1 + investmentGrowthRate) +
         (income * (1 - effectiveTaxRate)
@@ -366,64 +445,40 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
           - homeExpenses) -
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
-    } else if (drawFromInvestments) {
-      investments =
-        prevInvestments * (1 + investmentGrowthRate) - netAnnualNeed + oneTimeToInvestments;
-    } else if (prevInvestments > 0) {
-      investments = prevInvestments * (1 + investmentGrowthRate) + oneTimeToInvestments;
     } else {
-      investments = prevInvestments + oneTimeToInvestments;
+      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + oneTimeToInvestments;
     }
 
     // ── 401K ──
     let k401: number;
     if (!retired) {
-      // Include traditional 401K employee contribution (inflation-adjusted)
       k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor;
-    } else if (drawFrom401k) {
-      k401 = prev401k * (1 + investmentGrowthRate) - netAnnualNeed;
-    } else if (prev401k > 0) {
-      k401 = prev401k * (1 + investmentGrowthRate);
     } else {
-      k401 = prev401k;
+      k401 = prev401k * (1 + investmentGrowthRate) - drawAmounts.k401;
     }
 
     // ── Roth 401K ──
     let roth401k: number;
     if (!retired) {
-      roth401k =
-        prevRoth401k * (1 + investmentGrowthRate) + roth401kContribution * nextInflFactor;
-    } else if (drawFromRoth401k) {
-      roth401k = prevRoth401k * (1 + investmentGrowthRate) - netAnnualNeed;
-    } else if (prevRoth401k > 0) {
-      roth401k = prevRoth401k * (1 + investmentGrowthRate);
+      roth401k = prevRoth401k * (1 + investmentGrowthRate) + roth401kContribution * nextInflFactor;
     } else {
-      roth401k = prevRoth401k;
+      roth401k = prevRoth401k * (1 + investmentGrowthRate) - drawAmounts.roth401k;
     }
 
     // ── Roth IRA ──
     let rothIRA: number;
     if (!retired) {
-      rothIRA =
-        prevRothIRA * (1 + investmentGrowthRate) + rothIRAContribution * nextInflFactor;
-    } else if (drawFromRothIRA) {
-      rothIRA = prevRothIRA * (1 + investmentGrowthRate) - netAnnualNeed;
-    } else if (prevRothIRA > 0) {
-      rothIRA = prevRothIRA * (1 + investmentGrowthRate);
+      rothIRA = prevRothIRA * (1 + investmentGrowthRate) + rothIRAContribution * nextInflFactor;
     } else {
-      rothIRA = prevRothIRA;
+      rothIRA = prevRothIRA * (1 + investmentGrowthRate) - drawAmounts.rothIRA;
     }
 
     // ── Traditional IRA ──
     let ira: number;
     if (!retired) {
       ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor;
-    } else if (drawFromIRA) {
-      ira = prevIRA * (1 + investmentGrowthRate) - netAnnualNeed;
-    } else if (prevIRA > 0) {
-      ira = prevIRA * (1 + investmentGrowthRate);
     } else {
-      ira = prevIRA;
+      ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira;
     }
 
     // ── Net Worth ──
@@ -458,6 +513,14 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       adjustedNetWorth,
       budgetPeriodName: activePeriod.name,
       monthlyBudget: currentMonthlyBudget,
+      drawCash: drawAmounts.cash,
+      drawInvestments: drawAmounts.investments,
+      drawK401: drawAmounts.k401,
+      drawRoth401k: drawAmounts.roth401k,
+      drawRothIRA: drawAmounts.rothIRA,
+      drawIRA: drawAmounts.ira,
+      rmdAmount: rmdRequired,
+      actualSpend,
     });
 
     // ── Update prev values ──
@@ -574,6 +637,16 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   oneTimeEvents: [],
 
   budgetPeriods: DEFAULT_BUDGET_PERIODS,
+
+  withdrawalStrategy: {
+    order: ["cash", "investments", "k401", "roth401k", "rothIRA", "ira"] as WithdrawalAccount[],
+    enforceRMD: true,
+    mode: "budget" as const,
+    withdrawalRate: 0.04,
+    guardrailEnabled: false,
+    guardrailMultiple: 15,
+    guardrailCut: 0.10,
+  },
 };
 
 // ─── Monte Carlo Simulation ───────────────────────────────────────────────────
@@ -740,6 +813,9 @@ export function runProjectionWithReturns(
       cash, investments, k401, roth401k, rothIRA, ira,
       netWorth, nonHomeNetWorth, adjustedNetWorth,
       budgetPeriodName: activePeriod.name, monthlyBudget,
+      drawCash: 0, drawInvestments: drawFromInvestments ? 0 : 0,
+      drawK401: 0, drawRoth401k: 0, drawRothIRA: 0, drawIRA: 0,
+      rmdAmount: 0, actualSpend: 0,
     });
 
     prevHomeValue = currentHomeValue;

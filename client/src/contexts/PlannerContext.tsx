@@ -40,6 +40,9 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.socialSecurityMonthly === undefined) base.socialSecurityMonthly = DEFAULT_INPUTS.socialSecurityMonthly;
   if (!Array.isArray(base.oneTimeEvents)) base.oneTimeEvents = DEFAULT_INPUTS.oneTimeEvents;
   if (!Array.isArray(base.incomePhases)) base.incomePhases = DEFAULT_INPUTS.incomePhases;
+  if (!base.withdrawalStrategy || !Array.isArray(base.withdrawalStrategy.order)) {
+    base.withdrawalStrategy = DEFAULT_INPUTS.withdrawalStrategy;
+  }
   // Validate each income phase has required fields; strip legacy continuesInRetirement field
   base.incomePhases = (base.incomePhases as (IncomePhase & { continuesInRetirement?: unknown })[]).filter(
     (p) => p && typeof p.id === 'string' && typeof p.startAge === 'number'

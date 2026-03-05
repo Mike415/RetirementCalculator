@@ -24,6 +24,7 @@ import SocialSecurity from "./pages/SocialSecurity";
 import AlternativeIncome from "./pages/AlternativeIncome";
 import OneTimeEvents from "./pages/OneTimeEvents";
 import Scenarios from "./pages/Scenarios";
+import Distribution from "./pages/Distribution";
 import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -82,6 +83,7 @@ function PlannerApp() {
               <Route path="/social-security" component={SocialSecurity} />
               <Route path="/events" component={OneTimeEvents} />
               <Route path="/scenarios" component={Scenarios} />
+              <Route path="/distribution" component={Distribution} />
               <Route path="/projections" component={Projections} />
               <Route component={NotFound} />
             </Switch>

@@ -19,6 +19,7 @@ import {
   Download,
   GitCompare,
   Home,
+  Layers,
   PiggyBank,
   RotateCcw,
   Settings2,
@@ -47,7 +48,8 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { path: "/overview",    label: "Overview",          icon: BarChart3  },
       { path: "/projections", label: "Projections Table", icon: TrendingUp },
-      { path: "/scenarios",   label: "Scenarios",         icon: GitCompare },
+      { path: "/scenarios",     label: "Scenarios",           icon: GitCompare },
+      { path: "/distribution",   label: "Distribution Mgr",    icon: Layers     },
     ],
   },
   {
