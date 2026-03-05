@@ -23,6 +23,15 @@ export interface BudgetItem {
   amounts: number[]; // one per period
 }
 
+export interface IncomePhase {
+  id: string;
+  startAge: number;           // age at which this income phase begins
+  annualIncome: number;       // gross income at the start of this phase
+  growthRate: number;         // annual growth rate while in this phase (e.g. 0.03)
+  continuesInRetirement: boolean; // if true, income persists even after retirementAge
+  label: string;              // e.g. "Spouse returns to work", "Consulting"
+}
+
 export interface OneTimeEvent {
   id: string;
   age: number;
@@ -42,6 +51,9 @@ export interface RetirementInputs {
   currentGrossIncome: number;
   incomeGrowthRate: number; // e.g. 0.025
   effectiveTaxRate: number; // e.g. 0.45
+
+  // Income phases (optional overrides at specific ages)
+  incomePhases: IncomePhase[];
 
   // Accounts
   currentCash: number;
@@ -196,6 +208,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     budgetPeriods,
   } = inputs;
 
+  const incomePhases = inputs.incomePhases ?? [];
+
   const startYear = new Date().getFullYear();
   const rows: ProjectionRow[] = [];
 
@@ -209,6 +223,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   let prevRothIRA = currentRothIRA;
   let prevIRA = inputs.currentIRA;
   let prevIncome = currentGrossIncome;
+  // Track per-phase accumulated income (so each phase grows from its own base)
+  // Key: phase id, Value: current income level within that phase
+  const phaseIncomeLevels: Record<string, number> = {};
 
   const totalMortgageMonths = mortgageTotalYears * 12;
 
@@ -221,6 +238,21 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // Retirement status
     // Use >= so the person retires IN the configured year (age 65 = first retired year)
     const retired = age >= retirementAge;
+
+    // ── Income Phase Resolution ──
+    // Find the active income phase for this age (last phase whose startAge <= age)
+    const sortedPhases = [...incomePhases].sort((a, b) => a.startAge - b.startAge);
+    let activePhase: IncomePhase | null = null;
+    for (const phase of sortedPhases) {
+      if (age >= phase.startAge) activePhase = phase;
+    }
+    // Determine effective income for this year
+    // If a phase is active and (not retired OR continuesInRetirement), use phase income
+    // Otherwise fall back to base income (prevIncome) unless retired with no phase
+    const phaseIsActive = activePhase !== null && (!retired || activePhase.continuesInRetirement);
+    const effectiveIncome = phaseIsActive
+      ? (phaseIncomeLevels[activePhase!.id] ?? activePhase!.annualIncome)
+      : (!retired ? prevIncome : 0);
 
     // Budget period selection — use current age so the period switches exactly
     // at the configured startAge (e.g. startAge=38 activates when age=38).
@@ -287,7 +319,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && !drawFromRothIRA && prevIRA > 0;
 
     // ── Income ──
-    const income = retired ? 0 : prevIncome;
+    const income = effectiveIncome;
 
     // ── Home Value ──
     const currentHomeValue = prevHomeValue * (1 + inflationRate);
@@ -427,10 +459,18 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     prevRoth401k = roth401k;
     prevRothIRA = rothIRA;
     prevIRA = ira;
+    // Update base income (used when no phase is active)
     if (!retired) {
-      prevIncome = income * (1 + incomeGrowthRate);
+      prevIncome = (!phaseIsActive) ? income * (1 + incomeGrowthRate) : prevIncome * (1 + incomeGrowthRate);
     } else {
       prevIncome = 0;
+    }
+    // Update each phase's income level (compound within the phase)
+    for (const phase of sortedPhases) {
+      if (age >= phase.startAge && (!retired || phase.continuesInRetirement)) {
+        const current = phaseIncomeLevels[phase.id] ?? phase.annualIncome;
+        phaseIncomeLevels[phase.id] = current * (1 + phase.growthRate);
+      }
     }
   }
 
@@ -517,6 +557,9 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   socialSecurityEnabled: true,
   socialSecurityStartAge: 67,
   socialSecurityMonthly: 2200,
+
+  // No income phases by default
+  incomePhases: [],
 
   // No one-time events by default
   oneTimeEvents: [],

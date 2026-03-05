@@ -13,6 +13,7 @@ import {
   BudgetItem,
   BudgetPeriod,
   DEFAULT_INPUTS,
+  IncomePhase,
   ProjectionRow,
   RetirementInputs,
   runProjection,
@@ -38,6 +39,11 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.socialSecurityStartAge === undefined) base.socialSecurityStartAge = DEFAULT_INPUTS.socialSecurityStartAge;
   if (base.socialSecurityMonthly === undefined) base.socialSecurityMonthly = DEFAULT_INPUTS.socialSecurityMonthly;
   if (!Array.isArray(base.oneTimeEvents)) base.oneTimeEvents = DEFAULT_INPUTS.oneTimeEvents;
+  if (!Array.isArray(base.incomePhases)) base.incomePhases = DEFAULT_INPUTS.incomePhases;
+  // Validate each income phase has required fields
+  base.incomePhases = (base.incomePhases as IncomePhase[]).filter(
+    (p) => p && typeof p.id === 'string' && typeof p.startAge === 'number'
+  );
   // New contribution fields added in audit fix
   if (base.k401Contribution === undefined) base.k401Contribution = DEFAULT_INPUTS.k401Contribution;
   if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;
