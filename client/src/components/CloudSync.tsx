@@ -9,6 +9,10 @@
  *   browsers, so Device Flow cannot work in a static web app.
  *   A PAT with the "gist" scope is the simplest, most reliable alternative.
  *
+ * What gets synced:
+ *   - Main plan inputs (retirement-planner-v1)
+ *   - Saved scenarios (retirement-planner-scenarios-v1)
+ *
  * Flow:
  *   1. User creates a GitHub PAT with "gist" scope at github.com/settings/tokens
  *   2. User pastes the token into the input field
@@ -33,6 +37,9 @@ import {
   setStoredToken,
   clearStoredToken,
 } from '@/lib/githubGist';
+
+// The same key used by Scenarios.tsx
+const SCENARIOS_KEY = 'retirement-planner-scenarios-v1';
 
 interface UserInfo {
   login: string;
@@ -95,7 +102,22 @@ export default function CloudSync() {
     if (!token) return;
     setStatus('saving');
     try {
-      await saveToGist(token, inputs);
+      // Read scenarios directly from localStorage so we don't need to thread
+      // them through PlannerContext
+      let scenarios: unknown = [];
+      try {
+        const raw = localStorage.getItem(SCENARIOS_KEY);
+        if (raw) scenarios = JSON.parse(raw);
+      } catch { /* ignore */ }
+
+      const payload = {
+        _version: 2,
+        _exported: new Date().toISOString(),
+        inputs,
+        scenarios,
+      };
+
+      await saveToGist(token, payload);
       const now = new Date().toLocaleString();
       setLastSynced(now);
       localStorage.setItem('gh_gist_last_synced', now);
@@ -118,12 +140,31 @@ export default function CloudSync() {
         toast.info('No saved plan found in your GitHub Gists.');
         return;
       }
+
+      // Load main inputs
       const result = importFromObject(data);
       if (!result.ok) {
         setStatus('idle');
         toast.error(result.error ?? 'Failed to load plan.');
         return;
       }
+
+      // Load scenarios if present in the payload
+      const payload = data as Record<string, unknown>;
+      if (Array.isArray(payload.scenarios)) {
+        try {
+          localStorage.setItem(SCENARIOS_KEY, JSON.stringify(payload.scenarios));
+          // Force the Scenarios page to re-read by dispatching a storage event
+          window.dispatchEvent(
+            new StorageEvent('storage', {
+              key: SCENARIOS_KEY,
+              newValue: JSON.stringify(payload.scenarios),
+              storageArea: localStorage,
+            })
+          );
+        } catch { /* ignore */ }
+      }
+
       const now = new Date().toLocaleString();
       setLastSynced(now);
       localStorage.setItem('gh_gist_last_synced', now);
@@ -282,7 +323,7 @@ export default function CloudSync() {
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Saved as a private Gist in your GitHub account. Only you can see it.
+                Syncs your plan inputs and all saved scenarios.
               </p>
             </div>
           )}

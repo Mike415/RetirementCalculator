@@ -90,6 +90,17 @@ export default function Scenarios() {
     saveScenarios(scenarios);
   }, [scenarios]);
 
+  // Reload scenarios when cloud sync writes them via a storage event
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) {
+        setScenarios(loadScenarios());
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, []);
+
   // ── Save current inputs as a new scenario ──
   const saveScenario = () => {
     const name = newName.trim() || `Scenario ${scenarios.length + 1}`;
