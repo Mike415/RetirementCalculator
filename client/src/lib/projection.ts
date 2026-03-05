@@ -222,14 +222,12 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // Use >= so the person retires IN the configured year (age 65 = first retired year)
     const retired = age >= retirementAge;
 
-    // Budget period selection
-    const nextAge = age + 1;
-    const budgetPeriodIdx = getBudgetPeriodIndex(nextAge, budgetPeriods);
+    // Budget period selection — use current age so the period switches exactly
+    // at the configured startAge (e.g. startAge=38 activates when age=38).
+    const budgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
     const activePeriod = budgetPeriods[budgetPeriodIdx];
     const monthlyBudget = getBudgetMonthlyTotal(activePeriod, budgetPeriodIdx);
-    const currentBudgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
-    const currentActivePeriod = budgetPeriods[currentBudgetPeriodIdx];
-    const currentMonthlyBudget = getBudgetMonthlyTotal(currentActivePeriod, currentBudgetPeriodIdx);
+    const currentMonthlyBudget = monthlyBudget;
 
     const inflFactor = Math.pow(1 + inflationRate, yearsFromStart);
     const nextInflFactor = Math.pow(1 + inflationRate, yearsFromStart + 1);
@@ -416,7 +414,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       netWorth,
       nonHomeNetWorth,
       adjustedNetWorth,
-      budgetPeriodName: currentActivePeriod.name,
+      budgetPeriodName: activePeriod.name,
       monthlyBudget: currentMonthlyBudget,
     });
 
