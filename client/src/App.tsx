@@ -20,6 +20,9 @@ import HomeMortgage from "./pages/HomeMortgage";
 import Assumptions from "./pages/Assumptions";
 import Budget from "./pages/Budget";
 import Projections from "./pages/Projections";
+import SocialSecurity from "./pages/SocialSecurity";
+import OneTimeEvents from "./pages/OneTimeEvents";
+import Scenarios from "./pages/Scenarios";
 import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -73,6 +76,9 @@ function PlannerApp() {
               <Route path="/home" component={HomeMortgage} />
               <Route path="/assumptions" component={Assumptions} />
               <Route path="/budget" component={Budget} />
+              <Route path="/social-security" component={SocialSecurity} />
+              <Route path="/events" component={OneTimeEvents} />
+              <Route path="/scenarios" component={Scenarios} />
               <Route path="/projections" component={Projections} />
               <Route component={NotFound} />
             </Switch>

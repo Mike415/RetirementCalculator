@@ -4,6 +4,10 @@
  *
  * Design: "Horizon" — Warm Modernist Financial Planning
  * All calculations are pure functions for testability and real-time recalculation.
+ *
+ * New features:
+ * - Social Security: monthly benefit starting at a configured age
+ * - One-Time Events: cash injections/withdrawals at specific ages
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,6 +21,14 @@ export interface BudgetPeriod {
 export interface BudgetItem {
   label: string;
   amounts: number[]; // one per period
+}
+
+export interface OneTimeEvent {
+  id: string;
+  age: number;
+  label: string;
+  amount: number;   // positive = inflow (e.g. inheritance), negative = outflow (e.g. car purchase)
+  account: "investments" | "cash"; // which account receives/pays the event
 }
 
 export interface RetirementInputs {
@@ -59,6 +71,14 @@ export interface RetirementInputs {
   roth401kContribution: number;
   rothIRAContribution: number;
 
+  // Social Security
+  socialSecurityEnabled: boolean;
+  socialSecurityStartAge: number;   // age to start receiving benefits
+  socialSecurityMonthly: number;    // monthly benefit in today's dollars
+
+  // One-time events
+  oneTimeEvents: OneTimeEvent[];
+
   // Budget periods
   budgetPeriods: BudgetPeriod[];
 }
@@ -74,6 +94,8 @@ export interface ProjectionRow {
 
   // Financials
   income: number;
+  socialSecurityIncome: number;
+  oneTimeEventAmount: number;   // net one-time event cash flow this year
   annualExpenses: number;
   homeValue: number;
   homeLoan: number;
@@ -103,24 +125,6 @@ function pmt(annualRate: number, totalMonths: number, presentValue: number): num
   const r = annualRate / 12;
   if (r === 0) return presentValue / totalMonths;
   return (presentValue * r * Math.pow(1 + r, totalMonths)) / (Math.pow(1 + r, totalMonths) - 1);
-}
-
-/**
- * PPMT — principal portion of a specific payment
- * Returns negative (it's a payment reducing the balance).
- */
-function ppmt(
-  annualRate: number,
-  period: number, // 1-based payment number
-  totalMonths: number,
-  presentValue: number
-): number {
-  const r = annualRate / 12;
-  if (r === 0) return -presentValue / totalMonths;
-  const payment = pmt(annualRate, totalMonths, presentValue);
-  const interestPortion = presentValue * r * Math.pow(1 + r, period - 1) -
-    payment * (Math.pow(1 + r, period - 1) - 1);
-  return -(payment - interestPortion);
 }
 
 /**
@@ -179,23 +183,25 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     inflationRate,
     roth401kContribution,
     rothIRAContribution,
+    socialSecurityEnabled,
+    socialSecurityStartAge,
+    socialSecurityMonthly,
+    oneTimeEvents,
     budgetPeriods,
   } = inputs;
 
   const startYear = new Date().getFullYear();
   const rows: ProjectionRow[] = [];
 
-  // ── Initial state: raw input values ("prev" for the first loop iteration) ──
-  // The loop at i=0 computes row 2 of the spreadsheet (year 2023, age 36)
-  // using these raw inputs as the "previous year" values.
-  let prevHomeValue = homeValue; // P2 = B6*(1+inf) computed in loop
-  let prevHomeLoan = homeLoan;   // Q2 computed in loop
+  // ── Initial state ──
+  let prevHomeValue = homeValue;
+  let prevHomeLoan = homeLoan;
   let prevCash = currentCash;
-  let prevInvestments = currentInvestments; // S2 = B9 (raw)
-  let prev401k = current401k;               // T2 = B13 (raw)
-  let prevRoth401k = currentRoth401k;       // U2 = B11 (raw)
-  let prevRothIRA = currentRothIRA;         // V2 = B10 (raw)
-  let prevIncome = currentGrossIncome;      // N2 = B4 (raw)
+  let prevInvestments = currentInvestments;
+  let prev401k = current401k;
+  let prevRoth401k = currentRoth401k;
+  let prevRothIRA = currentRothIRA;
+  let prevIncome = currentGrossIncome;
 
   const totalMortgageMonths = mortgageTotalYears * 12;
 
@@ -206,54 +212,80 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const yearsFromStart = i;
 
     // Retirement status
-    // Spreadsheet: F[n] = (year - startYear) > (retirementAge - currentAge)
-    // This means retirement starts the year AFTER retirementAge is reached
     const retired = yearsFromStart > (retirementAge - currentAge);
 
-    // Budget for this year:
-    // The spreadsheet uses the NEXT year's age for budget period selection and inflation
-    // (O column references D[n+1] for inflation factor and budget period)
+    // Budget period selection
     const nextAge = age + 1;
     const budgetPeriodIdx = getBudgetPeriodIndex(nextAge, budgetPeriods);
     const activePeriod = budgetPeriods[budgetPeriodIdx];
     const monthlyBudget = getBudgetMonthlyTotal(activePeriod, budgetPeriodIdx);
-    // For display purposes, use current age's period
     const currentBudgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
     const currentActivePeriod = budgetPeriods[currentBudgetPeriodIdx];
     const currentMonthlyBudget = getBudgetMonthlyTotal(currentActivePeriod, currentBudgetPeriodIdx);
+
     const inflFactor = Math.pow(1 + inflationRate, yearsFromStart);
     const nextInflFactor = Math.pow(1 + inflationRate, yearsFromStart + 1);
 
-    // Annual expenses (when retired) — O column
-    // Remaining mortgage months at this point in time (used for both expenses and loan paydown)
-    const remainingMortgageMonths = Math.max(0, totalMortgageMonths - yearsFromStart * 12 - mortgageElapsedMonths);
-    // Monthly P&I payment based on current balance and remaining term
-    const monthlyMortgagePmt = remainingMortgageMonths > 0 && prevHomeLoan > 0
-      ? pmt(mortgageRate, remainingMortgageMonths, prevHomeLoan)
+    // ── Social Security ──
+    // Benefit is in today's dollars; inflate to the year it starts, then grow with inflation
+    const ssActive = socialSecurityEnabled && age >= socialSecurityStartAge;
+    const ssYearsFromStart = Math.max(0, socialSecurityStartAge - currentAge);
+    const ssInflFactor = Math.pow(1 + inflationRate, ssYearsFromStart);
+    // Annual SS income (inflation-adjusted to current year from start-of-SS dollars)
+    const socialSecurityIncome = ssActive
+      ? socialSecurityMonthly * 12 * ssInflFactor * Math.pow(1 + inflationRate, age - socialSecurityStartAge)
       : 0;
+
+    // ── One-Time Events ──
+    // Sum all events that fire at this exact age
+    const eventsThisYear = (oneTimeEvents ?? []).filter((e) => e.age === age);
+    const oneTimeEventAmount = eventsThisYear.reduce((sum, e) => sum + e.amount, 0);
+    const oneTimeToInvestments = eventsThisYear
+      .filter((e) => e.account === "investments")
+      .reduce((sum, e) => sum + e.amount, 0);
+    const oneTimeToCash = eventsThisYear
+      .filter((e) => e.account === "cash")
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // ── Mortgage ──
+    const remainingMortgageMonths = Math.max(
+      0,
+      totalMortgageMonths - yearsFromStart * 12 - mortgageElapsedMonths
+    );
+    const monthlyMortgagePmt =
+      remainingMortgageMonths > 0 && prevHomeLoan > 0
+        ? pmt(mortgageRate, remainingMortgageMonths, prevHomeLoan)
+        : 0;
     const annualMortgagePmt = monthlyMortgagePmt * 12;
-    // Property taxes fixed at retirement-year inflation; other costs use current year
+
+    // ── Annual Expenses ──
     const retirementYearsFromStart = retirementAge - currentAge;
     const retirementInflFactor = Math.pow(1 + inflationRate, retirementYearsFromStart);
-    const annualExpenses = annualMortgagePmt +
+    const annualExpenses =
+      annualMortgagePmt +
       (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
       propertyTaxesYear * retirementInflFactor +
       (homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
 
-    // Draw priority (only relevant when retired)
+    // ── Net annual need (expenses minus SS income when retired) ──
+    const netAnnualNeed = retired
+      ? Math.max(0, annualExpenses - socialSecurityIncome)
+      : 0;
+
+    // ── Draw priority ──
     const drawFromInvestments = retired && prevInvestments > 0;
     const drawFrom401k = retired && !drawFromInvestments && prev401k > 0;
     const drawFromRoth401k = retired && !drawFromInvestments && !drawFrom401k && prevRoth401k > 0;
-    const drawFromRothIRA = retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && prevRothIRA > 0;
+    const drawFromRothIRA =
+      retired && !drawFromInvestments && !drawFrom401k && !drawFromRoth401k && prevRothIRA > 0;
 
-    // Income — N column
+    // ── Income ──
     const income = retired ? 0 : prevIncome;
 
-    // Home value — P column: P2 = B6*(1+inf), P[n] = P[n-1]*(1+inf)
+    // ── Home Value ──
     const currentHomeValue = prevHomeValue * (1 + inflationRate);
 
-    // Home loan — proper amortization: simulate 12 monthly payments
-    // Reuses remainingMortgageMonths and monthlyMortgagePmt computed above
+    // ── Home Loan (amortization) ──
     let currentHomeLoan = prevHomeLoan;
     if (remainingMortgageMonths > 0 && prevHomeLoan > 0) {
       const monthlyR = mortgageRate / 12;
@@ -267,63 +299,67 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       currentHomeLoan = bal;
     }
 
-    // Cash — R column: stays constant
-    const cash = currentCash;
+    // ── Cash ──
+    const cash = Math.max(0, prevCash + oneTimeToCash);
 
-    // Investments — S column
+    // ── Investments ──
     let investments: number;
     if (!retired) {
-      // Working: grow + save net income after taxes and home expenses and contributions
-      // Uses NEXT year's budget period and inflation factor (matching spreadsheet S column formula)
-      const homeExpenses = (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
-      investments = prevInvestments * (1 + investmentGrowthRate) +
+      const homeExpenses =
+        (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
+      investments =
+        prevInvestments * (1 + investmentGrowthRate) +
         (income * (1 - effectiveTaxRate) - extraMortgageMonthly * 12 - homeExpenses) -
-        (roth401kContribution + rothIRAContribution) * nextInflFactor;
+        (roth401kContribution + rothIRAContribution) * nextInflFactor +
+        oneTimeToInvestments;
     } else if (drawFromInvestments) {
-      investments = prevInvestments * (1 + investmentGrowthRate) - annualExpenses;
+      investments =
+        prevInvestments * (1 + investmentGrowthRate) - netAnnualNeed + oneTimeToInvestments;
     } else if (prevInvestments > 0) {
-      investments = prevInvestments * (1 + investmentGrowthRate);
+      investments = prevInvestments * (1 + investmentGrowthRate) + oneTimeToInvestments;
     } else {
-      investments = prevInvestments;
+      investments = prevInvestments + oneTimeToInvestments;
     }
 
-    // 401K — T column
+    // ── 401K ──
     let k401: number;
     if (!retired) {
       k401 = prev401k * (1 + investmentGrowthRate);
     } else if (drawFrom401k) {
-      k401 = prev401k * (1 + investmentGrowthRate) - annualExpenses;
+      k401 = prev401k * (1 + investmentGrowthRate) - netAnnualNeed;
     } else if (prev401k > 0) {
       k401 = prev401k * (1 + investmentGrowthRate);
     } else {
       k401 = prev401k;
     }
 
-    // Roth 401K — U column
+    // ── Roth 401K ──
     let roth401k: number;
     if (!retired) {
-      roth401k = prevRoth401k * (1 + investmentGrowthRate) + roth401kContribution * nextInflFactor;
+      roth401k =
+        prevRoth401k * (1 + investmentGrowthRate) + roth401kContribution * nextInflFactor;
     } else if (drawFromRoth401k) {
-      roth401k = prevRoth401k * (1 + investmentGrowthRate) - annualExpenses;
+      roth401k = prevRoth401k * (1 + investmentGrowthRate) - netAnnualNeed;
     } else if (prevRoth401k > 0) {
       roth401k = prevRoth401k * (1 + investmentGrowthRate);
     } else {
       roth401k = prevRoth401k;
     }
 
-    // Roth IRA — V column
+    // ── Roth IRA ──
     let rothIRA: number;
     if (!retired) {
-      rothIRA = prevRothIRA * (1 + investmentGrowthRate) + rothIRAContribution * nextInflFactor;
+      rothIRA =
+        prevRothIRA * (1 + investmentGrowthRate) + rothIRAContribution * nextInflFactor;
     } else if (drawFromRothIRA) {
-      rothIRA = prevRothIRA * (1 + investmentGrowthRate) - annualExpenses;
+      rothIRA = prevRothIRA * (1 + investmentGrowthRate) - netAnnualNeed;
     } else if (prevRothIRA > 0) {
       rothIRA = prevRothIRA * (1 + investmentGrowthRate);
     } else {
       rothIRA = prevRothIRA;
     }
 
-    // Net worth calculations
+    // ── Net Worth ──
     const netWorth = currentHomeValue - currentHomeLoan + cash + investments + k401 + roth401k + rothIRA;
     const nonHomeNetWorth = cash + investments + k401 + roth401k + rothIRA;
     const adjustedNetWorth = netWorth / Math.pow(1 + inflationRate, age - currentAge);
@@ -337,6 +373,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       drawFromRoth401k,
       drawFromRothIRA,
       income,
+      socialSecurityIncome,
+      oneTimeEventAmount,
       annualExpenses,
       homeValue: currentHomeValue,
       homeLoan: currentHomeLoan,
@@ -352,15 +390,15 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       monthlyBudget: currentMonthlyBudget,
     });
 
-    // Update prev values for next iteration
+    // ── Update prev values ──
     prevHomeValue = currentHomeValue;
     prevHomeLoan = currentHomeLoan;
+    prevCash = cash;
     prevInvestments = investments;
     prev401k = k401;
     prevRoth401k = roth401k;
     prevRothIRA = rothIRA;
     if (!retired) {
-      // N[n+1] = N[n] * (1 + incomeGrowthRate)
       prevIncome = income * (1 + incomeGrowthRate);
     } else {
       prevIncome = 0;
@@ -370,65 +408,57 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   return rows;
 }
 
-// ─── Default Inputs (from the spreadsheet) ────────────────────────────────────
+// ─── Default Inputs ───────────────────────────────────────────────────────────
 
-// Budget items: amounts[periodIndex] for each of the 6 life-stage periods
-// Periods: 0=Nanny/Daycare(34), 1=School(38), 2=Activity(40), 3=HighSchool(45), 4=College(49), 5=PostCollege(53)
 export const DEFAULT_BUDGET_ITEMS: BudgetItem[] = [
   { label: "TV/Internet/Subscriptions", amounts: [100, 100, 100, 100, 100, 100] },
-  { label: "DMV Registration", amounts: [38, 38, 38, 38, 38, 38] },
-  { label: "Gardener", amounts: [150, 150, 150, 150, 150, 150] },
-  { label: "Garbage", amounts: [42, 42, 42, 42, 42, 42] },
-  { label: "Water", amounts: [100, 100, 100, 100, 100, 100] },
-  { label: "PG&E / Electricity", amounts: [400, 400, 400, 400, 400, 400] },
-  { label: "Taxes (misc)", amounts: [10, 10, 10, 10, 10, 10] },
-  { label: "Phone", amounts: [50, 50, 75, 100, 100, 100] },
-  { label: "Life Insurance", amounts: [100, 100, 100, 100, 100, 100] },
-  { label: "Auto Insurance", amounts: [150, 150, 150, 150, 150, 150] },
-  { label: "Umbrella Insurance", amounts: [150, 150, 150, 150, 150, 150] },
-  { label: "Property Maintenance", amounts: [300, 300, 300, 300, 300, 300] },
-  { label: "Groceries & Supplies", amounts: [1250, 1400, 1600, 1600, 1000, 1000] },
-  { label: "Gifts", amounts: [125, 150, 150, 150, 125, 125] },
-  { label: "Entertainment", amounts: [100, 100, 150, 150, 100, 100] },
-  { label: "Car Payment", amounts: [400, 400, 400, 400, 400, 400] },
+  { label: "DMV Registration",          amounts: [38,  38,  38,  38,  38,  38 ] },
+  { label: "Gardener",                  amounts: [150, 150, 150, 150, 150, 150] },
+  { label: "Garbage",                   amounts: [42,  42,  42,  42,  42,  42 ] },
+  { label: "Water",                     amounts: [100, 100, 100, 100, 100, 100] },
+  { label: "PG&E / Electricity",        amounts: [400, 400, 400, 400, 400, 400] },
+  { label: "Taxes (misc)",              amounts: [10,  10,  10,  10,  10,  10 ] },
+  { label: "Phone",                     amounts: [50,  50,  75,  100, 100, 100] },
+  { label: "Life Insurance",            amounts: [100, 100, 100, 100, 100, 100] },
+  { label: "Auto Insurance",            amounts: [150, 150, 150, 150, 150, 150] },
+  { label: "Umbrella Insurance",        amounts: [150, 150, 150, 150, 150, 150] },
+  { label: "Property Maintenance",      amounts: [300, 300, 300, 300, 300, 300] },
+  { label: "Groceries & Supplies",      amounts: [1250,1400,1600,1600,1000,1000] },
+  { label: "Gifts",                     amounts: [125, 150, 150, 150, 125, 125] },
+  { label: "Entertainment",             amounts: [100, 100, 150, 150, 100, 100] },
+  { label: "Car Payment",               amounts: [400, 400, 400, 400, 400, 400] },
   { label: "Gas / Tolls / Maintenance", amounts: [350, 350, 350, 350, 350, 350] },
-  { label: "Clothes", amounts: [100, 200, 300, 300, 100, 100] },
-  { label: "Trips / Getaways", amounts: [500, 500, 500, 500, 500, 500] },
-  { label: "Restaurants", amounts: [300, 300, 300, 300, 300, 300] },
-  { label: "Gym", amounts: [60, 60, 60, 60, 60, 60] },
-  { label: "Grooming / Self Care", amounts: [200, 200, 200, 200, 200, 200] },
-  { label: "Dog", amounts: [0, 0, 150, 150, 150, 150] },
-  { label: "Sports / Activities", amounts: [100, 200, 1000, 400, 0, 0] },
-  { label: "School / Tuition", amounts: [0, 2500, 2500, 4200, 8300, 0] },
-  { label: "Day Care", amounts: [5000, 0, 0, 0, 0, 0] },
-  { label: "Health Care", amounts: [50, 50, 50, 50, 50, 50] },
+  { label: "Clothes",                   amounts: [100, 200, 300, 300, 100, 100] },
+  { label: "Trips / Getaways",          amounts: [500, 500, 500, 500, 500, 500] },
+  { label: "Restaurants",               amounts: [300, 300, 300, 300, 300, 300] },
+  { label: "Gym",                       amounts: [60,  60,  60,  60,  60,  60 ] },
+  { label: "Grooming / Self Care",      amounts: [200, 200, 200, 200, 200, 200] },
+  { label: "Dog",                       amounts: [0,   0,   150, 150, 150, 150] },
+  { label: "Sports / Activities",       amounts: [100, 200, 1000,400, 0,   0  ] },
+  { label: "School / Tuition",          amounts: [0,   2500,2500,4200,8300,0  ] },
+  { label: "Day Care",                  amounts: [5000,0,   0,   0,   0,   0  ] },
+  { label: "Health Care",               amounts: [50,  50,  50,  50,  50,  50 ] },
 ];
-// Totals: [10125, 8000, 9325, 10450, 13275, 4975] per month
 
 export const DEFAULT_BUDGET_PERIODS: BudgetPeriod[] = [
-  // Ages assume first child born when parent is ~33; adjust startAge to match your situation
-  { name: "Nanny / Daycare", startAge: 35, items: DEFAULT_BUDGET_ITEMS },
-  { name: "School", startAge: 38, items: DEFAULT_BUDGET_ITEMS },
+  { name: "Nanny / Daycare",          startAge: 35, items: DEFAULT_BUDGET_ITEMS },
+  { name: "School",                   startAge: 38, items: DEFAULT_BUDGET_ITEMS },
   { name: "Activity-Oriented School", startAge: 41, items: DEFAULT_BUDGET_ITEMS },
-  { name: "High School", startAge: 46, items: DEFAULT_BUDGET_ITEMS },
-  { name: "College", startAge: 50, items: DEFAULT_BUDGET_ITEMS },
-  { name: "Post College", startAge: 54, items: DEFAULT_BUDGET_ITEMS },
+  { name: "High School",              startAge: 46, items: DEFAULT_BUDGET_ITEMS },
+  { name: "College",                  startAge: 50, items: DEFAULT_BUDGET_ITEMS },
+  { name: "Post College",             startAge: 54, items: DEFAULT_BUDGET_ITEMS },
 ];
 
 export const DEFAULT_INPUTS: RetirementInputs = {
-  // A typical 35-year-old household with two incomes, young children,
-  // a starter home, and a solid but not extreme savings base.
   currentAge: 35,
   retirementAge: 65,
   withdrawalAge: 65,
   projectionEndAge: 90,
 
-  // Median household income for a dual-income couple in their mid-30s
   currentGrossIncome: 150000,
-  incomeGrowthRate: 0.03,    // 3% annual raises
-  effectiveTaxRate: 0.28,    // ~28% effective federal + state
+  incomeGrowthRate: 0.03,
+  effectiveTaxRate: 0.28,
 
-  // Accounts: consistent with ~10 years of saving at median income
   currentCash: 25000,
   currentInvestments: 75000,
   current401k: 85000,
@@ -436,7 +466,6 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   currentRothIRA: 25000,
   currentIRA: 0,
 
-  // Median US home value ~$420K with 20% down, 30-year mortgage at 6.5%
   homeValue: 420000,
   homeLoan: 336000,
   mortgageRate: 0.065,
@@ -447,13 +476,19 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   propertyTaxesYear: 5000,
   homeInsuranceYear: 1800,
 
-  // Long-term historical averages
-  investmentGrowthRate: 0.07,  // 7% nominal (S&P 500 long-run average)
-  inflationRate: 0.03,         // 3% inflation
+  investmentGrowthRate: 0.07,
+  inflationRate: 0.03,
 
-  // 2024 IRS limits: 401K $23K + employer match; IRA $7K/person
   roth401kContribution: 23000,
   rothIRAContribution: 14000,
+
+  // Social Security defaults: start at 67 (full retirement age), ~$2,200/mo
+  socialSecurityEnabled: true,
+  socialSecurityStartAge: 67,
+  socialSecurityMonthly: 2200,
+
+  // No one-time events by default
+  oneTimeEvents: [],
 
   budgetPeriods: DEFAULT_BUDGET_PERIODS,
 };

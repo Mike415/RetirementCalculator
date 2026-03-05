@@ -132,6 +132,12 @@ export default function Projections() {
                       Income
                     </th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      SS Income
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      One-Time
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
                       Annual Expenses
                     </th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
@@ -258,6 +264,18 @@ export default function Projections() {
                       <>
                         <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700 font-medium">
                           {row.income > 0 ? formatCurrency(row.income, true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-blue-600 font-medium">
+                          {row.socialSecurityIncome > 0 ? formatCurrency(row.socialSecurityIncome, true) : "—"}
+                        </td>
+                        <td className={cn(
+                          "px-3 py-2.5 text-right tabular-nums font-medium",
+                          row.oneTimeEventAmount > 0 ? "text-emerald-600" :
+                          row.oneTimeEventAmount < 0 ? "text-red-500" : "text-slate-300"
+                        )}>
+                          {row.oneTimeEventAmount !== 0
+                            ? (row.oneTimeEventAmount > 0 ? "+" : "") + formatCurrency(row.oneTimeEventAmount, true)
+                            : "—"}
                         </td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-red-500 font-medium">
                           {formatCurrency(row.annualExpenses, true)}

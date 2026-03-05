@@ -33,6 +33,12 @@ const STORAGE_KEY = "retirement-planner-v1";
 function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   const base: RetirementInputs = { ...DEFAULT_INPUTS, ...saved };
 
+  // Ensure new fields added after first save always get their defaults
+  if (base.socialSecurityEnabled === undefined) base.socialSecurityEnabled = DEFAULT_INPUTS.socialSecurityEnabled;
+  if (base.socialSecurityStartAge === undefined) base.socialSecurityStartAge = DEFAULT_INPUTS.socialSecurityStartAge;
+  if (base.socialSecurityMonthly === undefined) base.socialSecurityMonthly = DEFAULT_INPUTS.socialSecurityMonthly;
+  if (!Array.isArray(base.oneTimeEvents)) base.oneTimeEvents = DEFAULT_INPUTS.oneTimeEvents;
+
   // Merge budget periods: use saved periods if present, else defaults
   if (saved.budgetPeriods && Array.isArray(saved.budgetPeriods)) {
     base.budgetPeriods = saved.budgetPeriods.map((savedPeriod: BudgetPeriod, pi: number) => {

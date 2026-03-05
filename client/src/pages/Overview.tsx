@@ -167,7 +167,7 @@ export default function Overview() {
           <p className="text-xs font-semibold uppercase tracking-widest text-white/60 mb-3">
             Retirement Snapshot — Age {inputs.retirementAge} ({retirementRow.year})
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {[
               { label: "Investments", value: retirementRow.investments },
               { label: "401K", value: retirementRow.k401 },
@@ -175,6 +175,8 @@ export default function Overview() {
               { label: "Roth IRA", value: retirementRow.rothIRA },
               { label: "Home Equity", value: retirementRow.homeValue - retirementRow.homeLoan },
               { label: "Annual Expenses", value: retirementRow.annualExpenses },
+              ...(inputs.socialSecurityEnabled ? [{ label: `SS Income (age ${inputs.socialSecurityStartAge}+)`, value: inputs.socialSecurityMonthly * 12 }] : []),
+              ...(inputs.oneTimeEvents?.length ? [{ label: "One-Time Events", value: inputs.oneTimeEvents.reduce((s, e) => s + e.amount, 0) }] : []),
             ].map((item) => (
               <div key={item.label}>
                 <p className="text-[10px] text-white/50 uppercase tracking-wide">{item.label}</p>
