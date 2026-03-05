@@ -210,8 +210,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   } = inputs;
 
   const incomePhases = inputs.incomePhases ?? [];
-
-  const startYear = new Date().getFullYear();
+  // DEBUG: log incomePhases to console so we can verify they're being passed in
+  if (incomePhases.length > 0) {
+    console.log('[Projection] incomePhases:', JSON.stringify(incomePhases));
+  }
+  const startYear = new Date().getFullYear();;
   const rows: ProjectionRow[] = [];
 
   // ── Initial state ──
@@ -258,6 +261,10 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const baseIncome = !retired ? prevIncome : 0;
     // Total effective income = base + all active additive phases
     const effectiveIncome = baseIncome + additionalPhaseIncome;
+    // DEBUG
+    if (additionalPhaseIncome > 0) {
+      console.log(`[Projection] Age ${age}: additionalPhaseIncome=${additionalPhaseIncome.toFixed(0)}, effectiveIncome=${effectiveIncome.toFixed(0)}`);
+    }
 
     // Budget period selection — use current age so the period switches exactly
     // at the configured startAge (e.g. startAge=38 activates when age=38).
