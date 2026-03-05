@@ -27,7 +27,7 @@ import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Route, Switch, Redirect } from "wouter";
+import { Route, Switch, Redirect, Router } from "wouter";
 
 function PlannerApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -89,14 +89,19 @@ function PlannerApp() {
   );
 }
 
+// Vite exposes VITE_BASE_PATH at build time; strip trailing slash for wouter
+const BASE = (import.meta.env.VITE_BASE_PATH ?? "/").replace(/\/$/, "") || "";
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <PlannerProvider>
-            <Toaster />
-            <PlannerApp />
+            <Router base={BASE}>
+              <Toaster />
+              <PlannerApp />
+            </Router>
           </PlannerProvider>
         </TooltipProvider>
       </ThemeProvider>

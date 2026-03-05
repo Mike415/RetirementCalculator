@@ -14,6 +14,10 @@ const BASE = process.env.VITE_BASE_PATH ?? "/";
 
 export default defineConfig({
   base: BASE,
+  define: {
+    // Make VITE_BASE_PATH available in import.meta.env at runtime
+    "import.meta.env.VITE_BASE_PATH": JSON.stringify(BASE),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
