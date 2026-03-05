@@ -406,46 +406,54 @@ export const DEFAULT_BUDGET_ITEMS: BudgetItem[] = [
 // Totals: [10125, 8000, 9325, 10450, 13275, 4975] per month
 
 export const DEFAULT_BUDGET_PERIODS: BudgetPeriod[] = [
-  { name: "Nanny / Daycare", startAge: 34, items: DEFAULT_BUDGET_ITEMS },
+  // Ages assume first child born when parent is ~33; adjust startAge to match your situation
+  { name: "Nanny / Daycare", startAge: 35, items: DEFAULT_BUDGET_ITEMS },
   { name: "School", startAge: 38, items: DEFAULT_BUDGET_ITEMS },
-  { name: "Activity-Oriented School", startAge: 40, items: DEFAULT_BUDGET_ITEMS },
-  { name: "High School", startAge: 45, items: DEFAULT_BUDGET_ITEMS },
-  { name: "College", startAge: 49, items: DEFAULT_BUDGET_ITEMS },
-  { name: "Post College", startAge: 53, items: DEFAULT_BUDGET_ITEMS },
+  { name: "Activity-Oriented School", startAge: 41, items: DEFAULT_BUDGET_ITEMS },
+  { name: "High School", startAge: 46, items: DEFAULT_BUDGET_ITEMS },
+  { name: "College", startAge: 50, items: DEFAULT_BUDGET_ITEMS },
+  { name: "Post College", startAge: 54, items: DEFAULT_BUDGET_ITEMS },
 ];
 
 export const DEFAULT_INPUTS: RetirementInputs = {
-  currentAge: 36,
-  retirementAge: 38,
+  // A typical 35-year-old household with two incomes, young children,
+  // a starter home, and a solid but not extreme savings base.
+  currentAge: 35,
+  retirementAge: 65,
   withdrawalAge: 65,
   projectionEndAge: 90,
 
-  currentGrossIncome: 1323000,
-  incomeGrowthRate: 0.025,
-  effectiveTaxRate: 0.45,
+  // Median household income for a dual-income couple in their mid-30s
+  currentGrossIncome: 150000,
+  incomeGrowthRate: 0.03,    // 3% annual raises
+  effectiveTaxRate: 0.28,    // ~28% effective federal + state
 
-  currentCash: 215000,
-  currentInvestments: 3081000,
-  current401k: 591000,
-  currentRoth401k: 174000,
-  currentRothIRA: 199500,
+  // Accounts: consistent with ~10 years of saving at median income
+  currentCash: 25000,
+  currentInvestments: 75000,
+  current401k: 85000,
+  currentRoth401k: 30000,
+  currentRothIRA: 25000,
   currentIRA: 0,
 
-  homeValue: 2750000,
-  homeLoan: 1326000,
-  mortgageRate: 0.03,
-  mortgageTotalYears: 27,
-  mortgageElapsedMonths: 6,
-  extraMortgageMonthly: 2500,
+  // Median US home value ~$420K with 20% down, 30-year mortgage at 6.5%
+  homeValue: 420000,
+  homeLoan: 336000,
+  mortgageRate: 0.065,
+  mortgageTotalYears: 30,
+  mortgageElapsedMonths: 0,
+  extraMortgageMonthly: 0,
 
-  propertyTaxesYear: 27000,
-  homeInsuranceYear: 4500,
+  propertyTaxesYear: 5000,
+  homeInsuranceYear: 1800,
 
-  investmentGrowthRate: 0.065,
-  inflationRate: 0.025,
+  // Long-term historical averages
+  investmentGrowthRate: 0.07,  // 7% nominal (S&P 500 long-run average)
+  inflationRate: 0.03,         // 3% inflation
 
-  roth401kContribution: 37000,
-  rothIRAContribution: 13000,
+  // 2024 IRS limits: 401K $23K + employer match; IRA $7K/person
+  roth401kContribution: 23000,
+  rothIRAContribution: 14000,
 
   budgetPeriods: DEFAULT_BUDGET_PERIODS,
 };
