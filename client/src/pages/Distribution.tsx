@@ -18,6 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
+import { Switch } from "@/components/ui/switch";
 import {
   BarChart,
   Bar,
@@ -372,19 +373,11 @@ export default function Distribution() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => updateWS({ enforceRMD: !ws.enforceRMD })}
-                className={cn(
-                  "relative w-10 h-5.5 rounded-full transition-colors flex-shrink-0 mt-0.5",
-                  ws.enforceRMD ? "bg-[#1B4332]" : "bg-slate-200"
-                )}
-                style={{ height: "22px", width: "40px" }}
-              >
-                <span className={cn(
-                  "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                  ws.enforceRMD ? "translate-x-5" : "translate-x-0.5"
-                )} />
-              </button>
+              <Switch
+                checked={ws.enforceRMD}
+                onCheckedChange={(v) => updateWS({ enforceRMD: v })}
+                className="flex-shrink-0 mt-0.5"
+              />
             </div>
             {ws.enforceRMD && rmdYears > 0 && (
               <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
@@ -406,19 +399,11 @@ export default function Distribution() {
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => updateWS({ guardrailEnabled: !ws.guardrailEnabled })}
-                className={cn(
-                  "relative rounded-full transition-colors flex-shrink-0 mt-0.5",
-                  ws.guardrailEnabled ? "bg-[#1B4332]" : "bg-slate-200"
-                )}
-                style={{ height: "22px", width: "40px" }}
-              >
-                <span className={cn(
-                  "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform",
-                  ws.guardrailEnabled ? "translate-x-5" : "translate-x-0.5"
-                )} />
-              </button>
+              <Switch
+                checked={ws.guardrailEnabled}
+                onCheckedChange={(v) => updateWS({ guardrailEnabled: v })}
+                className="flex-shrink-0 mt-0.5"
+              />
             </div>
 
             {ws.guardrailEnabled && (
