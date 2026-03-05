@@ -152,6 +152,24 @@ export default function Overview() {
   const atRetirement = projection.find((r) => r.retired) || last;
   const atAge65 = projection.find((r) => r.age === 65) || last;
 
+  // Compute current net worth directly from inputs (same formula as Accounts page)
+  // projection[0] is end-of-year-1 after growth/income/expenses — not today's snapshot
+  const currentNetWorth =
+    inputs.currentCash +
+    inputs.currentInvestments +
+    inputs.current401k +
+    inputs.currentRoth401k +
+    inputs.currentRothIRA +
+    inputs.currentIRA +
+    (inputs.homeValue - inputs.homeLoan);
+  const currentNonHomeNetWorth =
+    inputs.currentCash +
+    inputs.currentInvestments +
+    inputs.current401k +
+    inputs.currentRoth401k +
+    inputs.currentRothIRA +
+    inputs.currentIRA;
+
   // Chart data — sample every year
   const chartData = projection.map((r) => ({
     year: r.year,
@@ -204,8 +222,8 @@ export default function Overview() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Current Net Worth"
-          value={formatCurrency(first.netWorth, true)}
-          sub={`Non-home: ${formatCurrency(first.nonHomeNetWorth, true)}`}
+          value={formatCurrency(currentNetWorth, true)}
+          sub={`Non-home: ${formatCurrency(currentNonHomeNetWorth, true)}`}
           trend="neutral"
         />
         <MetricCard
