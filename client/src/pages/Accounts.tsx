@@ -55,25 +55,25 @@ function DOBInput({ label, value, onChange }: { label: string; value: string; on
   const maxDateStr = maxDate.toISOString().slice(0, 10);
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
-      <div className="relative">
-        <input
-          type="date"
-          value={value}
-          max={maxDateStr}
-          min={minDateStr}
-          onChange={(e) => {
-            const dob = e.target.value;
-            if (dob) onChange(dob, ageFromDOB(dob));
-          }}
-          className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 focus:border-[#1B4332] [font-size:16px]"
-        />
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
         {computedAge !== null && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#2D6A4F] bg-[#1B4332]/8 px-2 py-0.5 rounded-full pointer-events-none">
+          <span className="text-xs font-semibold text-[#2D6A4F] bg-[#1B4332]/10 px-2 py-0.5 rounded-full">
             Age {computedAge}
           </span>
         )}
       </div>
+      <input
+        type="date"
+        value={value}
+        max={maxDateStr}
+        min={minDateStr}
+        onChange={(e) => {
+          const dob = e.target.value;
+          if (dob) onChange(dob, ageFromDOB(dob));
+        }}
+        className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 focus:border-[#1B4332] [font-size:16px]"
+      />
     </div>
   );
 }
