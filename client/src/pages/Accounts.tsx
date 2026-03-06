@@ -294,6 +294,67 @@ export default function Accounts() {
           <CurrencyInput label="Home Insurance / yr" value={inputs.homeInsuranceYear} onChange={(v) => updateInput("homeInsuranceYear", v)} />
         </div>
       </SectionCard>
+
+      {/* Contribution Limits Reference */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-5">
+        <div>
+          <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-[#1B4332] text-white text-[10px] flex items-center justify-center font-bold">i</span>
+            2026 Contribution Limits
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">IRS limits for the 2026 tax year. Catch-up limits apply to age 50+ (age 60–63 gets a higher SECURE 2.0 super catch-up for 401k).</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* 401k / 403b */}
+          <div className="bg-white rounded-lg border border-slate-200 p-3 space-y-2">
+            <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">401(k) / 403(b)</p>
+            <div className="space-y-1 text-xs text-slate-600">
+              <div className="flex justify-between"><span>Employee deferral (under 50)</span><span className="font-semibold tabular-nums">$24,500</span></div>
+              <div className="flex justify-between"><span>Catch-up (age 50–59, 64+)</span><span className="font-semibold tabular-nums">+$8,000</span></div>
+              <div className="flex justify-between"><span className="font-medium text-blue-800">Super catch-up (age 60–63)</span><span className="font-semibold tabular-nums text-blue-800">+$11,250</span></div>
+              <div className="flex justify-between border-t border-slate-100 pt-1 mt-1"><span>Total 415(c) limit (employee + employer)</span><span className="font-semibold tabular-nums">$72,000</span></div>
+            </div>
+          </div>
+
+          {/* IRA */}
+          <div className="bg-white rounded-lg border border-slate-200 p-3 space-y-2">
+            <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Roth IRA / Traditional IRA</p>
+            <div className="space-y-1 text-xs text-slate-600">
+              <div className="flex justify-between"><span>Annual limit (under 50)</span><span className="font-semibold tabular-nums">$7,500</span></div>
+              <div className="flex justify-between"><span>Catch-up (age 50+)</span><span className="font-semibold tabular-nums">+$1,000</span></div>
+              <div className="flex justify-between border-t border-slate-100 pt-1 mt-1"><span>Roth IRA phase-out (single)</span><span className="font-semibold tabular-nums">$150k–$165k</span></div>
+              <div className="flex justify-between"><span>Roth IRA phase-out (MFJ)</span><span className="font-semibold tabular-nums">$236k–$246k</span></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mega Backdoor */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">Mega Backdoor Roth (2026)</p>
+          <p className="text-xs text-amber-700 mb-3">If your 401(k) plan allows after-tax contributions and in-service withdrawals (or in-plan Roth conversions), you can contribute far beyond the standard deferral limit.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white rounded-lg p-2.5 border border-amber-200">
+              <p className="text-[10px] text-amber-600 uppercase tracking-wide font-semibold">Under 50</p>
+              <p className="text-base font-bold text-amber-900 tabular-nums mt-0.5">$47,500</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">$72k total − $24,500 deferral</p>
+            </div>
+            <div className="bg-white rounded-lg p-2.5 border border-amber-200">
+              <p className="text-[10px] text-amber-600 uppercase tracking-wide font-semibold">Age 50–59, 64+</p>
+              <p className="text-base font-bold text-amber-900 tabular-nums mt-0.5">$39,500</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">$72k total − $32,500 deferrals</p>
+            </div>
+            <div className="bg-white rounded-lg p-2.5 border border-amber-200">
+              <p className="text-[10px] text-amber-600 uppercase tracking-wide font-semibold">Age 60–63</p>
+              <p className="text-base font-bold text-amber-900 tabular-nums mt-0.5">$36,250</p>
+              <p className="text-[10px] text-amber-600 mt-0.5">$72k total − $35,750 deferrals</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-amber-600 mt-3"><strong>How it works:</strong> Contribute after-tax dollars to your 401(k) up to the 415(c) limit, then immediately convert to Roth (in-plan conversion) or roll out to a Roth IRA. Earnings must be converted promptly to avoid taxable growth. Requires plan support — check with your HR/plan administrator.</p>
+        </div>
+
+        <p className="text-[10px] text-slate-400">Limits are for the 2026 tax year per IRS Notice 2025-82. Consult a tax advisor for your specific situation.</p>
+      </div>
     </div>
   );
 }
