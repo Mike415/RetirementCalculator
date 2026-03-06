@@ -66,9 +66,11 @@ const CHART_COLORS = {
   nonHomeNetWorth: "#2D6A4F",
   adjustedNetWorth: "#84A98C",
   investments: "#D97706",
-  k401: "#B45309",
-  roth401k: "#92400E",
-  rothIRA: "#78350F",
+  k401: "#2563EB",
+  roth401k: "#7C3AED",
+  rothIRA: "#DB2777",
+  ira: "#059669",
+  cash: "#64748B",
 };
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -78,7 +80,7 @@ function CustomTooltip({ active, payload, label }: any) {
       <p className="font-bold text-slate-700 mb-2">
         {label} (Age {payload[0]?.payload?.age})
       </p>
-      {payload.map((entry: any) => (
+      {[...payload].sort((a, b) => b.value - a.value).map((entry: any) => (
         <div key={entry.dataKey} className="flex justify-between gap-4 py-0.5">
           <span style={{ color: entry.color }} className="font-medium">
             {entry.name}
@@ -88,6 +90,33 @@ function CustomTooltip({ active, payload, label }: any) {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function AccountTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  // payload entries contain the *stacked* cumulative value — we need the raw value
+  // Recharts stacked areas store the raw value in entry.value when stackId is set,
+  // but the displayed bar height is cumulative. We show the raw individual values.
+  const total = payload.reduce((s: number, e: any) => s + (e.value ?? 0), 0);
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs min-w-[200px]">
+      <p className="font-bold text-slate-700 mb-2">
+        {label} (Age {payload[0]?.payload?.age})
+      </p>
+      {[...payload].reverse().map((entry: any) => (
+        entry.value > 0 && (
+          <div key={entry.dataKey} className="flex justify-between gap-4 py-0.5">
+            <span style={{ color: entry.color }} className="font-medium">{entry.name}</span>
+            <span className="font-bold text-slate-800 tabular-nums">{formatCurrency(entry.value, true)}</span>
+          </div>
+        )
+      ))}
+      <div className="flex justify-between gap-4 py-0.5 mt-1 pt-1 border-t border-slate-100">
+        <span className="font-semibold text-slate-600">Total</span>
+        <span className="font-bold text-slate-900 tabular-nums">{formatCurrency(total, true)}</span>
+      </div>
     </div>
   );
 }
@@ -173,11 +202,12 @@ export default function Overview() {
   const accountData = projection.map((r) => ({
     year: r.year,
     age: r.age,
+    Cash: Math.max(0, Math.round(r.cash)),
     Investments: Math.max(0, Math.round(r.investments)),
     "401K": Math.max(0, Math.round(r.k401)),
+    IRA: Math.max(0, Math.round(r.ira)),
     "Roth 401K": Math.max(0, Math.round(r.roth401k)),
     "Roth IRA": Math.max(0, Math.round(r.rothIRA)),
-    Cash: Math.max(0, Math.round(r.cash)),
   }));
 
   const retirementRow = projection.find((r) => r.age === inputs.retirementAge);
@@ -369,15 +399,22 @@ export default function Overview() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
         <h2 className="font-bold text-slate-800 mb-1">Account Balances Over Time</h2>
         <p className="text-xs text-slate-400 mb-4">
-          Individual account values — stacked to show total investable assets
+          Stacked view — hover to see each account's individual balance and the total
         </p>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={320}>
           <AreaChart data={accountData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
-              {Object.entries(CHART_COLORS).map(([key, color]) => (
+              {([
+                ["cash", CHART_COLORS.cash],
+                ["investments", CHART_COLORS.investments],
+                ["k401", CHART_COLORS.k401],
+                ["ira", CHART_COLORS.ira],
+                ["roth401k", CHART_COLORS.roth401k],
+                ["rothIRA", CHART_COLORS.rothIRA],
+              ] as [string, string][]).map(([key, color]) => (
                 <linearGradient key={key} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.4} />
-                  <stop offset="95%" stopColor={color} stopOpacity={0.05} />
+                  <stop offset="5%" stopColor={color} stopOpacity={0.55} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0.08} />
                 </linearGradient>
               ))}
             </defs>
@@ -395,44 +432,24 @@ export default function Overview() {
               axisLine={false}
               width={70}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<AccountTooltip />} />
             <Legend
               wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
               iconType="circle"
               iconSize={8}
             />
-            <Area
-              type="monotone"
-              dataKey="Investments"
-              stackId="1"
-              stroke={CHART_COLORS.investments}
-              fill={`url(#grad-investments)`}
-              strokeWidth={1.5}
-            />
-            <Area
-              type="monotone"
-              dataKey="401K"
-              stackId="1"
-              stroke={CHART_COLORS.k401}
-              fill={`url(#grad-k401)`}
-              strokeWidth={1.5}
-            />
-            <Area
-              type="monotone"
-              dataKey="Roth 401K"
-              stackId="1"
-              stroke={CHART_COLORS.roth401k}
-              fill={`url(#grad-roth401k)`}
-              strokeWidth={1.5}
-            />
-            <Area
-              type="monotone"
-              dataKey="Roth IRA"
-              stackId="1"
-              stroke={CHART_COLORS.rothIRA}
-              fill={`url(#grad-rothIRA)`}
-              strokeWidth={1.5}
-            />
+            <Area type="monotone" dataKey="Cash" stackId="1"
+              stroke={CHART_COLORS.cash} fill={`url(#grad-cash)`} strokeWidth={1.5} />
+            <Area type="monotone" dataKey="Investments" stackId="1"
+              stroke={CHART_COLORS.investments} fill={`url(#grad-investments)`} strokeWidth={1.5} />
+            <Area type="monotone" dataKey="401K" stackId="1"
+              stroke={CHART_COLORS.k401} fill={`url(#grad-k401)`} strokeWidth={1.5} />
+            <Area type="monotone" dataKey="IRA" stackId="1"
+              stroke={CHART_COLORS.ira} fill={`url(#grad-ira)`} strokeWidth={1.5} />
+            <Area type="monotone" dataKey="Roth 401K" stackId="1"
+              stroke={CHART_COLORS.roth401k} fill={`url(#grad-roth401k)`} strokeWidth={1.5} />
+            <Area type="monotone" dataKey="Roth IRA" stackId="1"
+              stroke={CHART_COLORS.rothIRA} fill={`url(#grad-rothIRA)`} strokeWidth={1.5} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
