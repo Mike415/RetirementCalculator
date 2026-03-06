@@ -185,7 +185,12 @@ export default function Accounts() {
 
   const agg = aggregateAccounts(accounts);
   const totalInvestable = agg.currentCash + agg.currentInvestments + agg.current401k + agg.currentRoth401k + agg.currentRothIRA + agg.currentIRA;
-  const homeEquity = inputs.homeValue - inputs.homeLoan;
+  const additionalEquity = (inputs.additionalProperties ?? []).reduce(
+    (sum, p) => sum + (p.homeValue - p.homeLoan),
+    0
+  );
+  const homeEquity = (inputs.homeValue - inputs.homeLoan) + additionalEquity;
+  const propertyCount = 1 + (inputs.additionalProperties?.length ?? 0);
   const totalNetWorth = totalInvestable + homeEquity;
 
   const sensors = useSensors(
@@ -228,7 +233,9 @@ export default function Accounts() {
             <p className="text-xl font-bold tabular-nums mt-0.5">{formatCurrency(totalInvestable, true)}</p>
           </div>
           <div>
-            <p className="text-[10px] text-white/50 uppercase tracking-wide">Home Equity</p>
+            <p className="text-[10px] text-white/50 uppercase tracking-wide">
+              Home Equity{propertyCount > 1 ? ` (${propertyCount})` : ""}
+            </p>
             <p className="text-xl font-bold tabular-nums mt-0.5">{formatCurrency(homeEquity, true)}</p>
           </div>
           <div>
@@ -288,21 +295,6 @@ export default function Accounts() {
           </DndContext>
         )}
       </div>
-
-      <SectionCard title="Home & Mortgage" description="Current home value, outstanding loan, and mortgage details.">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <CurrencyInput label="Home Value" value={inputs.homeValue} onChange={(v) => updateInput("homeValue", v)} />
-          <CurrencyInput label="Mortgage Balance" value={inputs.homeLoan} onChange={(v) => updateInput("homeLoan", v)} />
-          <NumberInput label="Mortgage Rate" value={inputs.mortgageRate * 100} onChange={(v) => updateInput("mortgageRate", v / 100)} suffix="%" min={0} max={20} />
-          <NumberInput label="Loan Term" value={inputs.mortgageTotalYears} onChange={(v) => updateInput("mortgageTotalYears", v)} suffix="yrs" min={1} max={30} integer />
-          <NumberInput label="Months Paid" value={inputs.mortgageElapsedMonths} onChange={(v) => updateInput("mortgageElapsedMonths", v)} suffix="mo" min={0} integer />
-          <CurrencyInput label="Extra Monthly" value={inputs.extraMortgageMonthly} onChange={(v) => updateInput("extraMortgageMonthly", v)} />
-        </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <CurrencyInput label="Property Taxes / yr" value={inputs.propertyTaxesYear} onChange={(v) => updateInput("propertyTaxesYear", v)} />
-          <CurrencyInput label="Home Insurance / yr" value={inputs.homeInsuranceYear} onChange={(v) => updateInput("homeInsuranceYear", v)} />
-        </div>
-      </SectionCard>
 
       {/* Contribution Limits Reference */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-5">
