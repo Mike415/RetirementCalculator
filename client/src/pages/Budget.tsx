@@ -281,15 +281,15 @@ export default function Budget() {
           </div>
         </div>
 
-        {/* Line items — horizontal scroll on mobile since this is a wide multi-column grid */}
+        {/* Line items — horizontal scroll since this is a wide multi-period grid */}
         <div className="overflow-x-auto">
-        <div className="divide-y divide-slate-50 min-w-[640px]">
+        <div className="divide-y divide-slate-50" style={{ minWidth: `${200 + budgetPeriods.length * 88 + 36}px` }}>
           {/* Column headers */}
           <div
             className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
-            style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}
+            style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
           >
-            <span>Expense</span>
+            <span className="sticky left-0 bg-slate-50 z-10 pr-2">Expense</span>
             {budgetPeriods.map((p, i) => (
               <span key={i} className="text-center truncate px-1">
                 {p.name.split(" ")[0]}
@@ -302,13 +302,13 @@ export default function Budget() {
             <div
               key={itemIdx}
               className="grid items-center px-6 py-2 hover:bg-slate-50/50 transition-colors"
-              style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}
+              style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
             >
               <input
                 type="text"
                 value={item.label}
                 onChange={(e) => updateItemLabel(itemIdx, e.target.value)}
-                className="text-sm text-slate-700 bg-transparent border-0 focus:outline-none focus:bg-white focus:border focus:border-slate-200 rounded px-1 py-0.5 -mx-1 w-full"
+                className="text-sm text-slate-700 bg-white border-0 focus:outline-none focus:border focus:border-slate-200 rounded px-1 py-0.5 -mx-1 w-full sticky left-0 z-10"
               />
               {budgetPeriods.map((_, periodIdx) => (
                 <div key={periodIdx} className="px-1">
@@ -336,9 +336,9 @@ export default function Budget() {
           {/* Totals row */}
           <div
             className="grid items-center px-6 py-3 bg-slate-50 font-semibold"
-            style={{ gridTemplateColumns: "1fr repeat(6, 80px) 32px" }}
+            style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
           >
-            <span className="text-xs text-slate-600 uppercase tracking-wide">Monthly Total</span>
+            <span className="text-xs text-slate-600 uppercase tracking-wide sticky left-0 bg-slate-50 z-10 pr-2">Monthly Total</span>
             {budgetPeriods.map((period, periodIdx) => {
               const total = getBudgetMonthlyTotal(period, periodIdx);
               return (
@@ -374,7 +374,7 @@ export default function Budget() {
       {/* All periods summary */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
         <h2 className="font-bold text-slate-800 mb-3">All Periods Summary</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           {budgetPeriods.map((period, idx) => {
             const total = getBudgetMonthlyTotal(period, idx);
             return (
