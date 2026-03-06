@@ -698,13 +698,17 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
 
     // ── Per-year dynamic tax calculation ──
     // Taxable ordinary income = wages/salary + RMD + Roth conversion amount + taxable 401k/IRA draws
+    // + alternative income phases (rental, pension, consulting, etc.) — always taxable
     // (Roth draws are tax-free; SS is partially taxable but we simplify to 85% inclusion)
     const taxableWages = !retired ? (baseIncome + partnerBaseIncome) : 0;
     // For retirement: taxable income = RMD + any 401k/IRA draws + 85% of SS
     const taxable401kDraw = retired ? (drawAmounts.k401 + drawAmounts.ira) : 0;
     const taxableSSIncome = retired ? socialSecurityIncome * 0.85 : 0;
     const taxableConversion = conversionAmount; // Roth conversion is always ordinary income
-    const taxableIncome = taxableWages + taxable401kDraw + taxableSSIncome + taxableConversion;
+    // Alternative income phases (rental income, pensions, consulting, etc.) are taxable
+    // in all years — they reduce account draws but still count as ordinary income for taxes.
+    const taxableAltIncome = additionalPhaseIncome;
+    const taxableIncome = taxableWages + taxable401kDraw + taxableSSIncome + taxableConversion + taxableAltIncome;
     // Compute tax using the real bracket table
     const taxResult = calculateTax(taxableIncome, filingStatus, stateCode, includeFica && !retired);
     // Use dynamic rate if taxable income > 0, otherwise fall back to the static effectiveTaxRate

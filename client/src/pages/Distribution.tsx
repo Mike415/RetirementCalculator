@@ -594,7 +594,7 @@ export default function Distribution() {
 
         <div className="p-5 space-y-5">
           {/* How it works */}
-          <div className="bg-slate-50 rounded-lg p-4 text-xs text-slate-600 space-y-1.5">
+          <div className="bg-slate-50 rounded-lg p-4 text-xs text-slate-600 space-y-2">
             <p className="font-semibold text-slate-700">How it works</p>
             <p>
               The optimizer runs hundreds of projection scenarios using a <strong>coordinate-descent + golden-section search</strong>.
@@ -605,6 +605,22 @@ export default function Distribution() {
               Unlike bracket-filling heuristics, this approach accounts for your actual spending pattern, RMD schedule,
               Social Security timing, state taxes, and compounding — so it finds the true optimum for your specific plan.
             </p>
+            <div className="mt-1 pt-2 border-t border-slate-200">
+              <p className="font-semibold text-slate-700 mb-1">Income sources included in each year's tax cost</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />Wages &amp; salary (pre-retirement)</div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />Partner income (pre-retirement)</div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />Alternative income phases (all years)</div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />Social Security (85% taxable)</div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />RMDs from 401(k) &amp; IRA (age 73+)</div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />State &amp; federal brackets (per-year)</div>
+              </div>
+              <p className="mt-1.5 text-slate-500">
+                <strong>Works in any age range</strong>, including pre-retirement. The optimizer will naturally avoid converting
+                during high-income working years and favor low-income windows (sabbaticals, early retirement gap, etc.).
+                Set Start Age to your current age to let it search your entire remaining timeline.
+              </p>
+            </div>
           </div>
 
           {/* Settings */}
