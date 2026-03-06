@@ -18,7 +18,7 @@ import {
   RetirementInputs,
   runProjection,
 } from "@/lib/projection";
-import type { AccountType } from "@/lib/projection";
+import type { AccountType, AdditionalProperty } from "@/lib/projection";
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
@@ -51,6 +51,8 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   // New contribution fields added in audit fix
   if (base.k401Contribution === undefined) base.k401Contribution = DEFAULT_INPUTS.k401Contribution;
   if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;
+  // Additional properties (multi-home support)
+  if (!Array.isArray(base.additionalProperties)) base.additionalProperties = DEFAULT_INPUTS.additionalProperties;
   // Migrate old saves without accounts[] — build accounts from legacy fixed fields
   if (!Array.isArray(base.accounts) || base.accounts.length === 0) {
     const accts: RetirementInputs['accounts'] = [];

@@ -40,6 +40,21 @@ export interface OneTimeEvent {
   account: "investments" | "cash"; // which account receives/pays the event
 }
 
+// ─── Additional Property ─────────────────────────────────────────────────────
+
+export interface AdditionalProperty {
+  id: string;
+  name: string;                  // e.g. "Vacation Cabin", "Rental Property"
+  homeValue: number;             // current market value
+  homeLoan: number;              // outstanding mortgage balance
+  mortgageRate: number;          // annual interest rate (e.g. 0.065)
+  mortgageTotalYears: number;    // original loan term in years
+  mortgageElapsedMonths: number; // months already paid
+  extraMortgageMonthly: number;  // extra principal payment per month
+  propertyTaxesYear: number;     // annual property taxes
+  homeInsuranceYear: number;     // annual insurance premium
+}
+
 // ─── Account Types ───────────────────────────────────────────────────────────
 export type AccountType = "cash" | "investment" | "401k" | "roth401k" | "rothIRA" | "ira" | "other";
 
@@ -171,6 +186,9 @@ export interface RetirementInputs {
 
   // Withdrawal strategy (used during retirement draw-down)
   withdrawalStrategy: WithdrawalStrategy;
+
+  // Additional properties (vacation homes, rental properties, etc.)
+  additionalProperties: AdditionalProperty[];
 }
 
 export interface ProjectionRow {
@@ -319,6 +337,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     }
   }
 
+  // ── Additional properties initial state ──
+  const additionalProperties = resolvedInputs.additionalProperties ?? [];
+  const prevAddlHomeValues = additionalProperties.map((p) => p.homeValue);
+  const prevAddlHomeLoans = additionalProperties.map((p) => p.homeLoan);
+
   // ── Initial state ──
   let prevHomeValue = homeValue;
   let prevHomeLoan = homeLoan;
@@ -394,7 +417,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       .filter((e) => e.account === "cash")
       .reduce((sum, e) => sum + e.amount, 0);
 
-    // ── Mortgage ──
+    // ── Mortgage (primary home) ──
     const remainingMortgageMonths = Math.max(
       0,
       totalMortgageMonths - yearsFromStart * 12 - mortgageElapsedMonths
@@ -405,13 +428,28 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         : 0;
     const annualMortgagePmt = monthlyMortgagePmt * 12;
 
+    // ── Additional properties mortgage payments ──
+    let addlAnnualMortgage = 0;
+    let addlAnnualFixedCosts = 0;
+    for (let pi = 0; pi < additionalProperties.length; pi++) {
+      const ap = additionalProperties[pi];
+      const apTotalMonths = ap.mortgageTotalYears * 12;
+      const apRemaining = Math.max(0, apTotalMonths - yearsFromStart * 12 - ap.mortgageElapsedMonths);
+      const apMonthlyPmt = apRemaining > 0 && prevAddlHomeLoans[pi] > 0
+        ? pmt(ap.mortgageRate, apRemaining, prevAddlHomeLoans[pi])
+        : 0;
+      addlAnnualMortgage += apMonthlyPmt * 12 + (apRemaining > 0 ? ap.extraMortgageMonthly * 12 : 0);
+      addlAnnualFixedCosts += (ap.propertyTaxesYear + ap.homeInsuranceYear) * nextInflFactor;
+    }
+
     // ── Annual Expenses ──
     // All expense components use nextInflFactor (current year's inflation factor)
     // so every cost grows consistently with inflation year over year.
     const annualExpenses =
       annualMortgagePmt +
       (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
-      (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
+      (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor +
+      addlAnnualMortgage + addlAnnualFixedCosts;
 
     // ── Net annual need (expenses minus SS income and active alternative income when retired) ──
     // Alternative income (rental, pension, consulting, etc.) reduces how much must be drawn
@@ -499,10 +537,10 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // ── Income ──
     const income = effectiveIncome;
 
-    // ── Home Value ──
+    // ── Home Value (primary) ──
     const currentHomeValue = prevHomeValue * (1 + inflationRate);
 
-    // ── Home Loan (amortization) ──
+    // ── Home Loan (primary amortization) ──
     let currentHomeLoan = prevHomeLoan;
     if (remainingMortgageMonths > 0 && prevHomeLoan > 0) {
       const monthlyR = mortgageRate / 12;
@@ -514,6 +552,37 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         if (bal === 0) break;
       }
       currentHomeLoan = bal;
+    }
+
+    // ── Additional properties: value growth and loan amortization ──
+    let addlTotalHomeValue = 0;
+    let addlTotalHomeLoan = 0;
+    for (let pi = 0; pi < additionalProperties.length; pi++) {
+      const ap = additionalProperties[pi];
+      const apTotalMonths = ap.mortgageTotalYears * 12;
+      const apRemaining = Math.max(0, apTotalMonths - yearsFromStart * 12 - ap.mortgageElapsedMonths);
+      const apMonthlyPmt = apRemaining > 0 && prevAddlHomeLoans[pi] > 0
+        ? pmt(ap.mortgageRate, apRemaining, prevAddlHomeLoans[pi])
+        : 0;
+      // Grow value with inflation
+      const apValue = prevAddlHomeValues[pi] * (1 + inflationRate);
+      prevAddlHomeValues[pi] = apValue;
+      // Amortize loan
+      let apLoan = prevAddlHomeLoans[pi];
+      if (apRemaining > 0 && apLoan > 0) {
+        const apMonthlyR = ap.mortgageRate / 12;
+        let bal = apLoan;
+        for (let m = 0; m < 12; m++) {
+          const interest = bal * apMonthlyR;
+          const principal = apMonthlyPmt - interest;
+          bal = Math.max(0, bal - principal - ap.extraMortgageMonthly);
+          if (bal === 0) break;
+        }
+        apLoan = bal;
+      }
+      prevAddlHomeLoans[pi] = apLoan;
+      addlTotalHomeValue += apValue;
+      addlTotalHomeLoan += apLoan;
     }
 
     // ── Cash ──
@@ -529,7 +598,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         (income * (1 - effectiveTaxRate)
           - annualMortgagePmt
           - extraMortgageMonthly * 12
-          - homeExpenses) -
+          - homeExpenses
+          - addlAnnualMortgage
+          - addlAnnualFixedCosts) -
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else {
@@ -570,7 +641,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     }
 
     // ── Net Worth ──
-    const netWorth = currentHomeValue - currentHomeLoan + cash + investments + k401 + roth401k + rothIRA + ira;
+    const totalHomeValue = currentHomeValue + addlTotalHomeValue;
+    const totalHomeLoan = currentHomeLoan + addlTotalHomeLoan;
+    const netWorth = totalHomeValue - totalHomeLoan + cash + investments + k401 + roth401k + rothIRA + ira;
     const nonHomeNetWorth = cash + investments + k401 + roth401k + rothIRA + ira;
     const adjustedNetWorth = netWorth / Math.pow(1 + inflationRate, age - currentAge);
 
@@ -588,8 +661,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       socialSecurityIncome,
       oneTimeEventAmount,
       annualExpenses,
-      homeValue: currentHomeValue,
-      homeLoan: currentHomeLoan,
+      homeValue: totalHomeValue,
+      homeLoan: totalHomeLoan,
       cash,
       investments,
       k401,
@@ -744,6 +817,9 @@ export const DEFAULT_INPUTS: RetirementInputs = {
     guardrailMultiple: 15,
     guardrailCut: 0.10,
   },
+
+  // No additional properties by default
+  additionalProperties: [],
 };
 
 // ─── Monte Carlo Simulation ───────────────────────────────────────────────────
