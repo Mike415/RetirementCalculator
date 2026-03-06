@@ -3,19 +3,34 @@
  * Design: "Horizon" — Warm Modernist Financial Planning
  */
 
-import { useState } from "react";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { Account, AccountType, aggregateAccounts } from "@/lib/projection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
 import { CurrencyInput, NumberInput, SectionCard } from "@/components/InputField";
 import { cn } from "@/lib/utils";
 import {
   Banknote, TrendingUp, Building2, Leaf, Shield, BookOpen, HelpCircle,
-  Plus, Trash2
+  Plus, Trash2, GripVertical
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const ACCOUNT_TYPE_META: Record<AccountType, {
   label: string;
@@ -51,9 +66,15 @@ function AccountRow({
   const meta = ACCOUNT_TYPE_META[account.type];
   const Icon = meta.icon;
   const hasOverride = account.growthRateOverride !== undefined && account.growthRateOverride !== null;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: account.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : undefined };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-slate-300 transition-colors">
+    <div ref={setNodeRef} style={style} className={cn("flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 transition-colors", isDragging ? "shadow-lg border-slate-300" : "hover:border-slate-300")}>
+      {/* Drag handle */}
+      <button {...attributes} {...listeners} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none">
+        <GripVertical className="w-4 h-4" />
+      </button>
       {/* Type icon */}
       <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", meta.bgColor)}>
         <Icon className={cn("w-3.5 h-3.5", meta.color)} />
@@ -158,8 +179,19 @@ export default function Accounts() {
   const homeEquity = inputs.homeValue - inputs.homeLoan;
   const totalNetWorth = totalInvestable + homeEquity;
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = accounts.findIndex((a) => a.id === active.id);
+      const newIndex = accounts.findIndex((a) => a.id === over.id);
+      updateAccounts(arrayMove(accounts, oldIndex, newIndex));
+    }
+  };
   const updateAccounts = (updated: Account[]) => updateInput("accounts", updated);
-
   const addAccount = () => {
     const newAccount: Account = { id: generateId(), name: "New Account", type: "investment", balance: 0, annualContribution: 0 };
     updateAccounts([...accounts, newAccount]);
@@ -234,13 +266,17 @@ export default function Accounts() {
             <p className="text-xs text-slate-400 mt-1">Click "Add Account" to get started</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {accounts.map((account) => (
-              <AccountRow key={account.id} account={account} defaultGrowthRate={inputs.investmentGrowthRate}
-                onUpdate={(updated) => updateAccount(account.id, updated)}
-                onDelete={() => deleteAccount(account.id)} />
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={accounts.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {accounts.map((account) => (
+                  <AccountRow key={account.id} account={account} defaultGrowthRate={inputs.investmentGrowthRate}
+                    onUpdate={(updated) => updateAccount(account.id, updated)}
+                    onDelete={() => deleteAccount(account.id)} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
