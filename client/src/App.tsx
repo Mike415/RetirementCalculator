@@ -57,8 +57,8 @@ function PlannerApp() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile header */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 bg-[#1B4332] text-white flex-shrink-0">
+        {/* Mobile header — sticky so it stays pinned when Safari chrome hides/shows */}
+        <div className="lg:hidden sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-[#1B4332] text-white flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
