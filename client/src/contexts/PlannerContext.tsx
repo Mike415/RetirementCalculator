@@ -18,6 +18,7 @@ import {
   RetirementInputs,
   runProjection,
 } from "@/lib/projection";
+import type { AccountType } from "@/lib/projection";
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 
@@ -50,6 +51,17 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   // New contribution fields added in audit fix
   if (base.k401Contribution === undefined) base.k401Contribution = DEFAULT_INPUTS.k401Contribution;
   if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;
+  // Migrate old saves without accounts[] — build accounts from legacy fixed fields
+  if (!Array.isArray(base.accounts) || base.accounts.length === 0) {
+    const accts: RetirementInputs['accounts'] = [];
+    if ((base.currentCash ?? 0) > 0) accts.push({ id: 'acc-cash', name: 'Checking / Savings', type: 'cash' as AccountType, balance: base.currentCash ?? 0, annualContribution: 0 });
+    if ((base.currentInvestments ?? 0) > 0) accts.push({ id: 'acc-invest', name: 'Taxable Brokerage', type: 'investment' as AccountType, balance: base.currentInvestments ?? 0, annualContribution: 0 });
+    if ((base.current401k ?? 0) > 0) accts.push({ id: 'acc-401k', name: '401(k)', type: '401k' as AccountType, balance: base.current401k ?? 0, annualContribution: base.k401Contribution ?? 0 });
+    if ((base.currentRoth401k ?? 0) > 0) accts.push({ id: 'acc-roth401k', name: 'Roth 401(k)', type: 'roth401k' as AccountType, balance: base.currentRoth401k ?? 0, annualContribution: base.roth401kContribution ?? 0 });
+    if ((base.currentRothIRA ?? 0) > 0) accts.push({ id: 'acc-rothira', name: 'Roth IRA', type: 'rothIRA' as AccountType, balance: base.currentRothIRA ?? 0, annualContribution: base.rothIRAContribution ?? 0 });
+    if ((base.currentIRA ?? 0) > 0) accts.push({ id: 'acc-ira', name: 'Traditional IRA', type: 'ira' as AccountType, balance: base.currentIRA ?? 0, annualContribution: base.iraContribution ?? 0 });
+    base.accounts = accts.length > 0 ? accts : DEFAULT_INPUTS.accounts;
+  }
 
   // Merge budget periods: use saved periods if present, else defaults
   if (saved.budgetPeriods && Array.isArray(saved.budgetPeriods)) {

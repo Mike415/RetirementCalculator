@@ -40,6 +40,64 @@ export interface OneTimeEvent {
   account: "investments" | "cash"; // which account receives/pays the event
 }
 
+// ─── Account Types ───────────────────────────────────────────────────────────
+export type AccountType = "cash" | "investment" | "401k" | "roth401k" | "rothIRA" | "ira" | "other";
+
+export interface Account {
+  id: string;
+  name: string;                    // user-defined label, e.g. "Fidelity 401k"
+  type: AccountType;
+  balance: number;                 // current balance
+  growthRateOverride?: number;     // if set, overrides investmentGrowthRate for this account
+  annualContribution?: number;     // annual contribution (pre-retirement only)
+}
+
+/** Map AccountType to the WithdrawalAccount key used in the projection engine */
+export function accountTypeToWithdrawal(type: AccountType): "cash" | "investments" | "k401" | "roth401k" | "rothIRA" | "ira" {
+  switch (type) {
+    case "cash": return "cash";
+    case "investment": return "investments";
+    case "401k": return "k401";
+    case "roth401k": return "roth401k";
+    case "rothIRA": return "rothIRA";
+    case "ira": return "ira";
+    case "other": return "investments"; // treat "other" as taxable investments
+    default: return "investments";
+  }
+}
+
+/** Aggregate accounts array into the legacy fixed-field totals */
+export function aggregateAccounts(accounts: Account[]): {
+  currentCash: number;
+  currentInvestments: number;
+  current401k: number;
+  currentRoth401k: number;
+  currentRothIRA: number;
+  currentIRA: number;
+  k401Contribution: number;
+  roth401kContribution: number;
+  rothIRAContribution: number;
+  iraContribution: number;
+} {
+  let currentCash = 0, currentInvestments = 0, current401k = 0;
+  let currentRoth401k = 0, currentRothIRA = 0, currentIRA = 0;
+  let k401Contribution = 0, roth401kContribution = 0, rothIRAContribution = 0, iraContribution = 0;
+  for (const acct of accounts) {
+    const contrib = acct.annualContribution ?? 0;
+    switch (acct.type) {
+      case "cash":       currentCash += acct.balance; break;
+      case "investment": currentInvestments += acct.balance; currentInvestments += 0; break;
+      case "other":      currentInvestments += acct.balance; break;
+      case "401k":       current401k += acct.balance; k401Contribution += contrib; break;
+      case "roth401k":   currentRoth401k += acct.balance; roth401kContribution += contrib; break;
+      case "rothIRA":    currentRothIRA += acct.balance; rothIRAContribution += contrib; break;
+      case "ira":        currentIRA += acct.balance; iraContribution += contrib; break;
+    }
+  }
+  return { currentCash, currentInvestments, current401k, currentRoth401k, currentRothIRA, currentIRA,
+           k401Contribution, roth401kContribution, rothIRAContribution, iraContribution };
+}
+
 // Account identifiers used in withdrawal ordering
 export type WithdrawalAccount = "cash" | "investments" | "k401" | "roth401k" | "rothIRA" | "ira";
 
@@ -68,7 +126,9 @@ export interface RetirementInputs {
   // Income phases (optional overrides at specific ages)
   incomePhases: IncomePhase[];
 
-  // Accounts
+  // Accounts — dynamic list (replaces fixed fields below)
+  accounts: Account[];
+  // Legacy fixed account fields (kept for backward compat; derived from accounts[] if accounts is non-empty)
   currentCash: number;
   currentInvestments: number;
   current401k: number;
@@ -202,6 +262,11 @@ export function getMonthlyBudgetForAge(age: number, periods: BudgetPeriod[]): nu
 // ─── Main Projection Engine ───────────────────────────────────────────────────
 
 export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
+  // If accounts[] is populated, derive fixed fields from it (overrides legacy fields)
+  const resolvedInputs: RetirementInputs = inputs.accounts && inputs.accounts.length > 0
+    ? { ...inputs, ...aggregateAccounts(inputs.accounts) }
+    : inputs;
+
   const {
     currentAge,
     retirementAge,
@@ -233,11 +298,26 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     socialSecurityMonthly,
     oneTimeEvents,
     budgetPeriods,
-  } = inputs;
-
-  const incomePhases = inputs.incomePhases ?? [];
+  } = resolvedInputs;
+  const incomePhases = resolvedInputs.incomePhases ?? [];
   const startYear = new Date().getFullYear();
   const rows: ProjectionRow[] = [];
+
+  // Build per-account growth rate map (for accounts with overrides)
+  // Key = WithdrawalAccount bucket, value = weighted average override rate
+  // Simple approach: if any account in a bucket has an override, use the first one found
+  const accountGrowthOverrides: Partial<Record<"cash" | "investments" | "k401" | "roth401k" | "rothIRA" | "ira", number>> = {};
+  if (inputs.accounts && inputs.accounts.length > 0) {
+    for (const acct of inputs.accounts) {
+      if (acct.growthRateOverride !== undefined && acct.growthRateOverride !== null) {
+        const bucket = accountTypeToWithdrawal(acct.type);
+        // Use weighted average if multiple accounts in same bucket have overrides
+        if (accountGrowthOverrides[bucket] === undefined) {
+          accountGrowthOverrides[bucket] = acct.growthRateOverride;
+        }
+      }
+    }
+  }
 
   // ── Initial state ──
   let prevHomeValue = homeValue;
@@ -247,7 +327,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   let prev401k = current401k;
   let prevRoth401k = currentRoth401k;
   let prevRothIRA = currentRothIRA;
-  let prevIRA = inputs.currentIRA;
+  let prevIRA = resolvedInputs.currentIRA;;
   let prevIncome = currentGrossIncome;
   // Track per-phase accumulated income (each phase grows independently from its own base)
   // Key: phase id, Value: current income level within that phase
@@ -603,6 +683,15 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   incomeGrowthRate: 0.03,
   effectiveTaxRate: 0.28,
 
+  // Dynamic accounts list (source of truth for balances)
+  accounts: [
+    { id: "acc-cash",      name: "Checking / Savings",  type: "cash" as AccountType,      balance: 25000, annualContribution: 0 },
+    { id: "acc-invest",   name: "Taxable Brokerage",   type: "investment" as AccountType, balance: 75000, annualContribution: 0 },
+    { id: "acc-401k",     name: "401(k)",              type: "401k" as AccountType,       balance: 85000, annualContribution: 0 },
+    { id: "acc-roth401k", name: "Roth 401(k)",         type: "roth401k" as AccountType,   balance: 30000, annualContribution: 23000 },
+    { id: "acc-rothira",  name: "Roth IRA",            type: "rothIRA" as AccountType,    balance: 25000, annualContribution: 14000 },
+  ],
+  // Legacy fields — kept for backward compat, overridden by accounts[] at runtime
   currentCash: 25000,
   currentInvestments: 75000,
   current401k: 85000,
@@ -674,13 +763,13 @@ export function runProjectionWithReturns(
   inputs: RetirementInputs,
   annualReturns: number[]
 ): ProjectionRow[] {
-  // Temporarily override the growth rate each year by patching inputs per iteration.
-  // We achieve this by running the normal projection loop with a modified rate array.
-  const rows: ProjectionRow[] = [];
-  const years = inputs.projectionEndAge - inputs.currentAge;
+  // If accounts[] is populated, derive fixed fields from it
+  const resolvedInputs: RetirementInputs = inputs.accounts && inputs.accounts.length > 0
+    ? { ...inputs, ...aggregateAccounts(inputs.accounts) }
+    : inputs;
 
-  // We'll use a simplified version that only tracks netWorth (for speed).
-  // This mirrors the account update logic from runProjection.
+  const rows: ProjectionRow[] = [];
+  const years = resolvedInputs.projectionEndAge - resolvedInputs.currentAge;
   const {
     currentAge, retirementAge, projectionEndAge,
     currentGrossIncome, incomeGrowthRate, effectiveTaxRate,
@@ -691,9 +780,8 @@ export function runProjectionWithReturns(
     k401Contribution, roth401kContribution, rothIRAContribution,
     iraContribution, socialSecurityEnabled, socialSecurityStartAge,
     socialSecurityMonthly, oneTimeEvents, budgetPeriods,
-  } = inputs;
-
-  const incomePhases = inputs.incomePhases ?? [];
+  } = resolvedInputs;
+  const incomePhases = resolvedInputs.incomePhases ?? [];;
   const startYear = new Date().getFullYear();
   const sortedPhases = [...incomePhases].sort((a, b) => a.startAge - b.startAge);
   const phaseIncomeLevels: Record<string, number> = {};
