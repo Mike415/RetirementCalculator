@@ -10,6 +10,8 @@
  * - One-Time Events: cash injections/withdrawals at specific ages
  */
 
+import { FilingStatus, calculateTax } from "./taxCalc";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface BudgetPeriod {
@@ -137,7 +139,11 @@ export interface RetirementInputs {
   // Income
   currentGrossIncome: number;
   incomeGrowthRate: number; // e.g. 0.025
-  effectiveTaxRate: number; // e.g. 0.45
+  effectiveTaxRate: number; // e.g. 0.45 — fallback if dynamic tax not configured
+  // Tax filing configuration — enables per-year dynamic tax calculation
+  filingStatus: FilingStatus;  // e.g. "married_joint"
+  stateCode: string;           // e.g. "CA"
+  includeFica: boolean;        // whether to include FICA in effective rate
 
   // Income phases (optional overrides at specific ages)
   incomePhases: IncomePhase[];
@@ -253,6 +259,13 @@ export interface ProjectionRow {
   drawIRA: number;
   rmdAmount: number;  // Required Minimum Distribution enforced this year
   actualSpend: number; // actual annual spend (may differ from budget if guardrail active)
+  // Per-year dynamic tax fields
+  taxableIncome: number;       // total ordinary taxable income this year
+  federalTax: number;          // computed federal income tax
+  stateTax: number;            // computed state income tax
+  totalTax: number;            // total tax (federal + state + FICA if enabled)
+  yearEffectiveTaxRate: number; // effective rate used for this year's calculations
+  marginalBracket: number;     // federal marginal bracket rate
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -321,6 +334,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   const resolvedInputs: RetirementInputs = dobResolvedInputs.accounts && dobResolvedInputs.accounts.length > 0
     ? { ...dobResolvedInputs, ...aggregateAccounts(dobResolvedInputs.accounts) }
     : dobResolvedInputs;
+
+  // ── Dynamic tax config ──
+  const filingStatus: FilingStatus = resolvedInputs.filingStatus ?? "married_joint";
+  const stateCode = resolvedInputs.stateCode ?? "CA";
+  const includeFica = resolvedInputs.includeFica ?? false;
 
   const {
     currentAge,
@@ -583,7 +601,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // Portion of RMD that exceeds spending need — will be taxed and reinvested
     const rmdOverflow = retired ? Math.max(0, rmdRequired - effectiveNeed) : 0;
     // After-tax amount of the RMD overflow that flows into taxable investments
-    const rmdOverflowAfterTax = rmdOverflow * (1 - effectiveTaxRate);
+    // rmdOverflowAfterTax is computed after yearEffectiveTaxRate is known (see below)
     const actualSpend = retired ? effectiveNeed : 0; // actual spending (not counting the reinvested overflow)
 
     // ── Ordered withdrawal: draw from accounts in configured priority ──
@@ -637,6 +655,35 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const drawFromRoth401k = drawAmounts.roth401k > 0;
     const drawFromRothIRA = drawAmounts.rothIRA > 0;
     const drawFromIRA = drawAmounts.ira > 0;
+
+    // ── Roth Conversion amount (needed before tax calc) ──
+    const conversionActive =
+      rothConversionEnabled &&
+      age >= rothConversionStartAge &&
+      age <= rothConversionEndAge;
+    const conversionAmount = conversionActive
+      ? Math.min(
+          rothConversionAnnualAmount * nextInflFactor,
+          rothConversionSource === "k401" ? prev401k : prevIRA
+        )
+      : 0;
+
+    // ── Per-year dynamic tax calculation ──
+    // Taxable ordinary income = wages/salary + RMD + Roth conversion amount + taxable 401k/IRA draws
+    // (Roth draws are tax-free; SS is partially taxable but we simplify to 85% inclusion)
+    const taxableWages = !retired ? (baseIncome + partnerBaseIncome) : 0;
+    // For retirement: taxable income = RMD + any 401k/IRA draws + 85% of SS
+    const taxable401kDraw = retired ? (drawAmounts.k401 + drawAmounts.ira) : 0;
+    const taxableSSIncome = retired ? socialSecurityIncome * 0.85 : 0;
+    const taxableConversion = conversionAmount; // Roth conversion is always ordinary income
+    const taxableIncome = taxableWages + taxable401kDraw + taxableSSIncome + taxableConversion;
+    // Compute tax using the real bracket table
+    const taxResult = calculateTax(taxableIncome, filingStatus, stateCode, includeFica && !retired);
+    // Use dynamic rate if taxable income > 0, otherwise fall back to the static effectiveTaxRate
+    const yearEffectiveTaxRate = taxableIncome > 0
+      ? taxResult.totalEffectiveRate
+      : effectiveTaxRate;
+    const marginalBracket = taxResult.federalMarginalRate;
 
     // ── Income ──
     const income = effectiveIncome;
@@ -699,7 +746,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
       investments =
         prevInvestments * (1 + investmentGrowthRate) +
-        (income * (1 - effectiveTaxRate)
+        (income * (1 - yearEffectiveTaxRate)
           - annualMortgagePmt
           - extraMortgageMonthly * 12
           - homeExpenses
@@ -708,25 +755,14 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else {
-      // RMD overflow (excess over spending need) is taxed at effectiveTaxRate;
-      // the after-tax remainder is deposited into taxable investments.
-      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + rmdOverflowAfterTax + oneTimeToInvestments;
+    // RMD overflow (excess over spending need) is taxed at the year's dynamic rate;
+    // the after-tax remainder is deposited into taxable investments.
+    investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + rmdOverflow * (1 - yearEffectiveTaxRate) + oneTimeToInvestments;
     }
 
-     // ── Roth Conversion (pre-RMD ladder) ──
-    // Moves money from 401k or IRA → Roth IRA each year within the configured age window.
-    // The conversion amount is inflation-adjusted. The source account is debited; Roth IRA is credited.
-    // Tax cost is already reflected in the user's effective tax rate (the converted amount is ordinary income).
-    const conversionActive =
-      rothConversionEnabled &&
-      age >= rothConversionStartAge &&
-      age <= rothConversionEndAge;
-    const conversionAmount = conversionActive
-      ? Math.min(
-          rothConversionAnnualAmount * nextInflFactor,
-          rothConversionSource === "k401" ? prev401k : prevIRA
-        )
-      : 0;
+    // ── Roth Conversion (pre-RMD ladder) ──
+    // conversionActive and conversionAmount are computed above (before tax calc)
+    // so they can be included in taxable income. Account adjustments are below.
 
     // ── 401K ──
     let k401: number;
@@ -802,6 +838,12 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       drawIRA: drawAmounts.ira,
       rmdAmount: rmdRequired,
       actualSpend,
+      taxableIncome,
+      federalTax: taxResult.federalTax,
+      stateTax: taxResult.stateTax,
+      totalTax: taxResult.totalTax,
+      yearEffectiveTaxRate,
+      marginalBracket,
     });
 
     // ── Update prev values ──
@@ -948,6 +990,10 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   rothConversionEndAge: 72,
   rothConversionAnnualAmount: 50000,
   rothConversionSource: "k401" as const,
+  // Dynamic tax filing configuration
+  filingStatus: "married_joint" as FilingStatus,
+  stateCode: "CA",
+  includeFica: false,
   // Partner / Spouse — disabled by default
   partnerEnabled: false,
   partnerName: "Partner",
@@ -1189,6 +1235,8 @@ export function runProjectionWithReturns(
       drawCash: 0, drawInvestments: drawFromInvestments ? 0 : 0,
       drawK401: 0, drawRoth401k: 0, drawRothIRA: 0, drawIRA: 0,
       rmdAmount: 0, actualSpend: 0,
+      taxableIncome: 0, federalTax: 0, stateTax: 0, totalTax: 0,
+      yearEffectiveTaxRate: effectiveTaxRate, marginalBracket: 0,
     });
 
     prevHomeValue = currentHomeValue;

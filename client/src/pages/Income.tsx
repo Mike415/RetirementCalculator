@@ -4,6 +4,8 @@
  *
  * Includes an auto tax calculator that estimates effective rate from
  * gross income, filing status, and state using 2024 brackets.
+ * Filing status, state, and FICA toggle are now persisted to RetirementInputs
+ * so the projection engine can use them for per-year dynamic tax calculations.
  */
 
 import { CurrencyInput, PercentInput, SectionCard } from "@/components/InputField";
@@ -30,9 +32,12 @@ export default function Income() {
 
   // ── Tax Calculator state ──────────────────────────────────────────────────
   const [calcOpen, setCalcOpen] = useState(false);
-  const [filingStatus, setFilingStatus] = useState<FilingStatus>("married_joint");
-  const [stateCode, setStateCode] = useState("TX");
-  const [includeFica, setIncludeFica] = useState(false);
+
+  // These three fields are persisted to RetirementInputs so the projection engine
+  // uses them for per-year dynamic tax calculations.
+  const filingStatus = (inputs.filingStatus ?? "married_joint") as FilingStatus;
+  const stateCode = inputs.stateCode ?? "CA";
+  const includeFica = inputs.includeFica ?? false;
 
   const taxResult = useMemo<TaxCalculationResult>(
     () => calculateTax(inputs.currentGrossIncome, filingStatus, stateCode, includeFica),
@@ -211,6 +216,13 @@ export default function Income() {
 
           {calcOpen && (
             <div className="p-4 space-y-4 bg-white">
+              {/* Note about dynamic tax */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                <p className="text-xs text-emerald-800">
+                  <strong>Dynamic Tax Mode:</strong> Filing status, state, and FICA settings below are saved and used by the projection engine to compute a per-year effective tax rate — so RMDs, Roth conversions, and withdrawals are taxed at the correct rate each year rather than a fixed estimate.
+                </p>
+              </div>
+
               {/* Calculator inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Filing status */}
@@ -220,7 +232,7 @@ export default function Income() {
                   </label>
                   <select
                     value={filingStatus}
-                    onChange={(e) => setFilingStatus(e.target.value as FilingStatus)}
+                    onChange={(e) => updateInput("filingStatus", e.target.value as FilingStatus)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30"
                   >
                     {(Object.keys(FILING_STATUS_LABELS) as FilingStatus[]).map((fs) => (
@@ -238,7 +250,7 @@ export default function Income() {
                   </label>
                   <select
                     value={stateCode}
-                    onChange={(e) => setStateCode(e.target.value)}
+                    onChange={(e) => updateInput("stateCode", e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30"
                   >
                     {STATE_CODES.map((code) => (
@@ -255,7 +267,7 @@ export default function Income() {
                     Include FICA
                   </label>
                   <button
-                    onClick={() => setIncludeFica((f) => !f)}
+                    onClick={() => updateInput("includeFica", !includeFica)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors w-full ${
                       includeFica
                         ? "bg-[#1B4332] text-white border-[#1B4332]"
@@ -371,19 +383,19 @@ function TaxRow({
   label: string;
   amount: number;
   rate: number;
-  detail?: string;
+  detail: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4">
+    <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
         <p className="text-sm font-medium text-slate-700">{label}</p>
-        {detail && <p className="text-[11px] text-slate-400 mt-0.5 truncate">{detail}</p>}
+        <p className="text-[10px] text-slate-400 mt-0.5 truncate">{detail}</p>
       </div>
       <div className="text-right flex-shrink-0">
         <p className="text-sm font-semibold tabular-nums text-slate-800">
           {formatCurrency(amount)}
         </p>
-        <p className="text-[11px] text-slate-400">{formatPercent(rate)} effective</p>
+        <p className="text-[10px] text-slate-500">{formatPercent(rate)} effective</p>
       </div>
     </div>
   );

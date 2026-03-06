@@ -61,6 +61,10 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.rothConversionEndAge === undefined) base.rothConversionEndAge = DEFAULT_INPUTS.rothConversionEndAge;
   if (base.rothConversionAnnualAmount === undefined) base.rothConversionAnnualAmount = DEFAULT_INPUTS.rothConversionAnnualAmount;
   if (base.rothConversionSource === undefined) base.rothConversionSource = DEFAULT_INPUTS.rothConversionSource;
+  // Dynamic tax filing configuration
+  if (base.filingStatus === undefined) base.filingStatus = DEFAULT_INPUTS.filingStatus;
+  if (base.stateCode === undefined) base.stateCode = DEFAULT_INPUTS.stateCode;
+  if (base.includeFica === undefined) base.includeFica = DEFAULT_INPUTS.includeFica;
   // Partner / Spouse fields
   if (base.partnerEnabled === undefined) base.partnerEnabled = DEFAULT_INPUTS.partnerEnabled;
   if (base.partnerName === undefined) base.partnerName = DEFAULT_INPUTS.partnerName;
