@@ -33,6 +33,51 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+/** Compute age in whole years from an ISO date string ("YYYY-MM-DD") as of today. */
+function ageFromDOB(dob: string): number {
+  const today = new Date();
+  const birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+/** DOB date input with computed age badge */
+function DOBInput({ label, value, onChange }: { label: string; value: string; onChange: (dob: string, age: number) => void }) {
+  const computedAge = value ? ageFromDOB(value) : null;
+  const today = new Date().toISOString().slice(0, 10);
+  const minDate = new Date();
+  minDate.setFullYear(minDate.getFullYear() - 100);
+  const minDateStr = minDate.toISOString().slice(0, 10);
+  const maxDate = new Date();
+  maxDate.setFullYear(maxDate.getFullYear() - 10);
+  const maxDateStr = maxDate.toISOString().slice(0, 10);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{label}</label>
+      <div className="relative">
+        <input
+          type="date"
+          value={value}
+          max={maxDateStr}
+          min={minDateStr}
+          onChange={(e) => {
+            const dob = e.target.value;
+            if (dob) onChange(dob, ageFromDOB(dob));
+          }}
+          className="w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 focus:border-[#1B4332] [font-size:16px]"
+        />
+        {computedAge !== null && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#2D6A4F] bg-[#1B4332]/8 px-2 py-0.5 rounded-full pointer-events-none">
+            Age {computedAge}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const ACCOUNT_TYPE_META: Record<AccountType, {
   label: string;
   icon: React.ElementType;
@@ -263,8 +308,15 @@ export default function Accounts() {
         {/* Primary person */}
         <div className="mb-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">You</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            <NumberInput label="Current Age" value={inputs.currentAge} onChange={(v) => updateInput("currentAge", v)} min={18} max={80} suffix="yrs" integer />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <DOBInput
+              label="Date of Birth"
+              value={inputs.dateOfBirth ?? ""}
+              onChange={(dob, age) => {
+                updateInput("dateOfBirth", dob);
+                updateInput("currentAge", age);
+              }}
+            />
             <NumberInput label="Retirement Age" value={inputs.retirementAge} onChange={(v) => updateInput("retirementAge", v)} min={inputs.currentAge + 1} max={80} suffix="yrs" integer />
             <NumberInput label="Project to Age" value={inputs.projectionEndAge} onChange={(v) => updateInput("projectionEndAge", v)} min={inputs.retirementAge + 1} max={100} suffix="yrs" integer />
           </div>
@@ -296,8 +348,15 @@ export default function Accounts() {
                   className="h-7 text-sm max-w-[160px] border-slate-200"
                 />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <NumberInput label="Partner Age" value={inputs.partnerCurrentAge} onChange={(v) => updateInput("partnerCurrentAge", v)} min={18} max={80} suffix="yrs" integer />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DOBInput
+                  label="Date of Birth"
+                  value={inputs.partnerDateOfBirth ?? ""}
+                  onChange={(dob, age) => {
+                    updateInput("partnerDateOfBirth", dob);
+                    updateInput("partnerCurrentAge", age);
+                  }}
+                />
                 <NumberInput label="Retirement Age" value={inputs.partnerRetirementAge} onChange={(v) => updateInput("partnerRetirementAge", v)} min={inputs.partnerCurrentAge + 1} max={80} suffix="yrs" integer />
               </div>
             </div>

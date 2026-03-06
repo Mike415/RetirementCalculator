@@ -128,6 +128,7 @@ export interface WithdrawalStrategy {
 
 export interface RetirementInputs {
   // Personal
+  dateOfBirth?: string;              // ISO date string e.g. "1990-03-15" — used to auto-compute currentAge
   currentAge: number;
   retirementAge: number;
   withdrawalAge: number; // age when retirement accounts can be drawn penalty-free (65)
@@ -193,6 +194,7 @@ export interface RetirementInputs {
   // Partner / Spouse
   partnerEnabled: boolean;
   partnerName: string;                  // e.g. "Alex"
+  partnerDateOfBirth?: string;          // ISO date string — used to auto-compute partnerCurrentAge
   partnerCurrentAge: number;
   partnerRetirementAge: number;
   partnerGrossIncome: number;           // current gross income
@@ -290,11 +292,29 @@ export function getMonthlyBudgetForAge(age: number, periods: BudgetPeriod[]): nu
 
 // ─── Main Projection Engine ───────────────────────────────────────────────────
 
+/** Compute age in whole years from an ISO date string ("YYYY-MM-DD") as of today. */
+function ageFromDOB(dob: string): number {
+  const today = new Date();
+  const birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
 export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
+  // Resolve DOB → currentAge / partnerCurrentAge if DOB fields are present
+  const dobResolvedInputs: RetirementInputs = {
+    ...inputs,
+    currentAge: inputs.dateOfBirth ? ageFromDOB(inputs.dateOfBirth) : inputs.currentAge,
+    partnerCurrentAge: (inputs.partnerEnabled && inputs.partnerDateOfBirth)
+      ? ageFromDOB(inputs.partnerDateOfBirth)
+      : inputs.partnerCurrentAge,
+  };
   // If accounts[] is populated, derive fixed fields from it (overrides legacy fields)
-  const resolvedInputs: RetirementInputs = inputs.accounts && inputs.accounts.length > 0
-    ? { ...inputs, ...aggregateAccounts(inputs.accounts) }
-    : inputs;
+  const resolvedInputs: RetirementInputs = dobResolvedInputs.accounts && dobResolvedInputs.accounts.length > 0
+    ? { ...dobResolvedInputs, ...aggregateAccounts(dobResolvedInputs.accounts) }
+    : dobResolvedInputs;
 
   const {
     currentAge,
@@ -895,10 +915,18 @@ export function runProjectionWithReturns(
   inputs: RetirementInputs,
   annualReturns: number[]
 ): ProjectionRow[] {
+  // Resolve DOB → currentAge / partnerCurrentAge if DOB fields are present
+  const dobResolved: RetirementInputs = {
+    ...inputs,
+    currentAge: inputs.dateOfBirth ? ageFromDOB(inputs.dateOfBirth) : inputs.currentAge,
+    partnerCurrentAge: (inputs.partnerEnabled && inputs.partnerDateOfBirth)
+      ? ageFromDOB(inputs.partnerDateOfBirth)
+      : inputs.partnerCurrentAge,
+  };
   // If accounts[] is populated, derive fixed fields from it
-  const resolvedInputs: RetirementInputs = inputs.accounts && inputs.accounts.length > 0
-    ? { ...inputs, ...aggregateAccounts(inputs.accounts) }
-    : inputs;
+  const resolvedInputs: RetirementInputs = dobResolved.accounts && dobResolved.accounts.length > 0
+    ? { ...dobResolved, ...aggregateAccounts(dobResolved.accounts) }
+    : dobResolved;
 
   const rows: ProjectionRow[] = [];
   const years = resolvedInputs.projectionEndAge - resolvedInputs.currentAge;

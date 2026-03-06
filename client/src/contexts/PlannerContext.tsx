@@ -53,6 +53,8 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;
   // Additional properties (multi-home support)
   if (!Array.isArray(base.additionalProperties)) base.additionalProperties = DEFAULT_INPUTS.additionalProperties;
+  // DOB fields (optional — undefined is fine for old saves)
+  // No default needed; undefined means "not set", age fallback is used instead
   // Partner / Spouse fields
   if (base.partnerEnabled === undefined) base.partnerEnabled = DEFAULT_INPUTS.partnerEnabled;
   if (base.partnerName === undefined) base.partnerName = DEFAULT_INPUTS.partnerName;
