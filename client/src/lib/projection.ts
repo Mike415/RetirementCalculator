@@ -450,10 +450,16 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       }
     }
     // RMD: must withdraw at least rmdRequired from tax-deferred accounts.
-    // Excess above spending need is reinvested into taxable investments (not spent).
+    // When RMD exceeds the spending need, the forced distribution is treated as
+    // additional spending (taxes + living expenses absorb it) — it is NOT recycled
+    // back into taxable investments, which would artificially preserve the portfolio.
+    // The effective spend is raised to cover the full RMD so the withdrawal loop
+    // pulls the right amount from the tax-deferred accounts.
     const totalNeedWithRMD = Math.max(effectiveNeed, rmdRequired);
-    const rmdOverflow = retired ? Math.max(0, rmdRequired - effectiveNeed) : 0;
-    const actualSpend = retired ? effectiveNeed : 0;
+    // rmdOverflow: the portion of the RMD that exceeds the normal spending need.
+    // This is consumed (spent / taxed away) rather than reinvested.
+    const rmdOverflow = 0; // no longer reinvested — RMD excess is spent, not saved
+    const actualSpend = retired ? totalNeedWithRMD : 0;
 
     // ── Ordered withdrawal: draw from accounts in configured priority ──
     // Each account grows at investmentGrowthRate first, then we subtract the draw.
@@ -527,8 +533,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else {
-      // rmdOverflow: excess RMD above spending need is reinvested into taxable investments
-      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + oneTimeToInvestments + rmdOverflow;
+      // RMD excess is spent (not reinvested), so no rmdOverflow added here
+      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + oneTimeToInvestments;
     }
 
     // ── 401K ──
