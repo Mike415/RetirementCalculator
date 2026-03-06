@@ -59,10 +59,12 @@ function saveScenarios(scenarios: Scenario[]) {
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
+  // Sort entries highest → lowest so the tooltip order matches the visual line order
+  const sorted = [...payload].sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   return (
     <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-xs min-w-[160px]">
       <p className="font-bold text-slate-700 mb-2">Age {label}</p>
-      {payload.map((entry: any) => (
+      {sorted.map((entry: any) => (
         <div key={entry.dataKey} className="flex justify-between gap-4 py-0.5">
           <span style={{ color: entry.color }} className="font-medium truncate max-w-[100px]">
             {entry.name}
