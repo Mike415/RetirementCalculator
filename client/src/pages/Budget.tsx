@@ -281,8 +281,9 @@ export default function Budget() {
           </div>
         </div>
 
-        {/* Line items */}
-        <div className="divide-y divide-slate-50">
+        {/* Line items — horizontal scroll on mobile since this is a wide multi-column grid */}
+        <div className="overflow-x-auto">
+        <div className="divide-y divide-slate-50 min-w-[640px]">
           {/* Column headers */}
           <div
             className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
@@ -355,7 +356,8 @@ export default function Budget() {
             })}
             <span></span>
           </div>
-        </div>
+        </div>{/* end min-w wrapper */}
+        </div>{/* end overflow-x-auto */}
 
         {/* Add item */}
         <div className="px-6 py-3 border-t border-slate-100">

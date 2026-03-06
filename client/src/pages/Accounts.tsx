@@ -88,7 +88,7 @@ function AccountRow({
         <select
           value={account.type}
           onChange={(e) => onUpdate({ ...account, type: e.target.value as AccountType })}
-          className="h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0 w-[140px]"
+          className="h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0 w-[140px] [font-size:16px]"
         >
           {ACCOUNT_TYPES.map((t) => (
             <option key={t} value={t}>{ACCOUNT_TYPE_META[t].label}</option>
@@ -147,7 +147,7 @@ function AccountRow({
                   if (!isNaN(parsed)) onUpdate({ ...account, growthRateOverride: parsed / 100 });
                 }}
                 onBlur={() => setRateStr(null)}
-                className="h-8 text-xs pr-5 pl-2 w-full"
+                className="h-8 text-xs pr-5 pl-2 w-full [font-size:16px]"
                 placeholder="Rate %"
               />
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">%</span>

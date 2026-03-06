@@ -348,7 +348,7 @@ export default function Distribution() {
                   step={0.1}
                   value={(ws.withdrawalRate * 100).toFixed(1)}
                   onChange={(e) => updateWS({ withdrawalRate: parseFloat(e.target.value) / 100 || 0.04 })}
-                  className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30"
+                  className="w-20 border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-center font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 [font-size:16px]"
                 />
                 <span className="text-sm text-slate-500">%</span>
                 <span className="text-xs text-slate-400">
@@ -417,7 +417,7 @@ export default function Distribution() {
                     step={1}
                     value={ws.guardrailMultiple}
                     onChange={(e) => updateWS({ guardrailMultiple: parseFloat(e.target.value) || 15 })}
-                    className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30"
+                    className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 [font-size:16px]"
                   />
                   <span className="text-xs text-slate-400">× annual spend</span>
                 </div>
@@ -430,7 +430,7 @@ export default function Distribution() {
                     step={1}
                     value={Math.round(ws.guardrailCut * 100)}
                     onChange={(e) => updateWS({ guardrailCut: (parseFloat(e.target.value) || 10) / 100 })}
-                    className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30"
+                    className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm text-center font-bold tabular-nums focus:outline-none focus:ring-2 focus:ring-[#1B4332]/30 [font-size:16px]"
                   />
                   <span className="text-xs text-slate-400">% reduction when triggered</span>
                 </div>

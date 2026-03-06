@@ -36,7 +36,7 @@ function PlannerApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-[#FAFAF8] overflow-hidden">
+    <div className="flex h-[100dvh] bg-[#FAFAF8] overflow-hidden">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -57,8 +57,8 @@ function PlannerApp() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile header — sticky so it stays pinned when Safari chrome hides/shows */}
-        <div className="lg:hidden sticky top-0 z-10 flex items-center gap-3 px-4 py-3 bg-[#1B4332] text-white flex-shrink-0">
+        {/* Mobile header — flex-shrink-0 keeps it out of the scroll container so it is always visible */}
+        <div className="lg:hidden flex-shrink-0 flex items-center gap-3 px-4 py-3 bg-[#1B4332] text-white">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
@@ -68,8 +68,8 @@ function PlannerApp() {
           <h1 className="font-bold text-sm">Retirement Planner</h1>
         </div>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* Page content — overscroll-contain prevents the whole-page bounce on iOS when scrolling past the end */}
+        <main className="flex-1 overflow-y-auto overscroll-contain">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
             <Switch>
               <Route path="/" component={() => <Redirect to="/overview" />} />

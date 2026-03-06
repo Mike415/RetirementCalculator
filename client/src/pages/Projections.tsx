@@ -83,7 +83,7 @@ export default function Projections() {
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="sticky left-0 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                <th className="sticky left-0 bg-[#f8fafc] px-4 py-3 text-left font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
                   Year
                 </th>
                 <th className="px-3 py-3 text-left font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
@@ -199,7 +199,8 @@ export default function Projections() {
                   >
                     <td className={cn(
                       "sticky left-0 px-4 py-2.5 font-semibold tabular-nums",
-                      isRetirementYear ? "bg-[#1B4332]/5" : isRetired ? "bg-amber-50/30" : "bg-white"
+                      /* Solid backgrounds required — semi-transparent colors let scrolled content bleed through */
+                      isRetirementYear ? "bg-[#f0f5f2]" : isRetired ? "bg-[#fffbf0]" : "bg-white"
                     )}>
                       {row.year}
                     </td>

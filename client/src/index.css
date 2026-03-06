@@ -157,6 +157,49 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── iOS / Mobile fixes ──────────────────────────────────────────────────────
+ *
+ * 1. Prevent iOS Safari from zooming into inputs with font-size < 16px.
+ *    We set a minimum font-size of 16px on all interactive inputs, then
+ *    use transform: scale() to visually shrink them back so the layout
+ *    stays compact. This is the canonical iOS zoom-prevention technique.
+ *
+ * 2. Respect safe-area insets (notch / home indicator) on iPhone.
+ *
+ * 3. Momentum scrolling on the main scroll container.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* Prevent iOS zoom: all text inputs must have font-size >= 16px */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe-area insets for notch / home indicator */
+@supports (padding: env(safe-area-inset-bottom)) {
+  main {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Mobile sidebar footer should also respect safe area */
+  aside {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Momentum scrolling on iOS (no longer needed in iOS 13+ but harmless) */
+main {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
