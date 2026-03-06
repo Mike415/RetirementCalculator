@@ -9,12 +9,12 @@ import { formatCurrency } from "@/lib/format";
 import { Account, AccountType, aggregateAccounts } from "@/lib/projection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+
 import { CurrencyInput, NumberInput, SectionCard } from "@/components/InputField";
 import { cn } from "@/lib/utils";
 import {
   Banknote, TrendingUp, Building2, Leaf, Shield, BookOpen, HelpCircle,
-  Plus, Trash2, ChevronDown, ChevronUp, Pencil, Check, X
+  Plus, Trash2
 } from "lucide-react";
 
 const ACCOUNT_TYPE_META: Record<AccountType, {
@@ -48,134 +48,106 @@ function AccountRow({
   onUpdate: (updated: Account) => void;
   onDelete: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState(account.name);
-
   const meta = ACCOUNT_TYPE_META[account.type];
   const Icon = meta.icon;
   const hasOverride = account.growthRateOverride !== undefined && account.growthRateOverride !== null;
-  const effectiveRate = hasOverride ? account.growthRateOverride! : defaultGrowthRate;
-
-  const saveName = () => {
-    if (nameInput.trim()) onUpdate({ ...account, name: nameInput.trim() });
-    setEditingName(false);
-  };
 
   return (
-    <div className={cn("rounded-xl border transition-all", meta.borderColor, expanded ? "shadow-sm" : "")}>
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0", meta.bgColor)}>
-          <Icon className={cn("w-4 h-4", meta.color)} />
-        </div>
-        <div className="flex-1 min-w-0">
-          {editingName ? (
-            <div className="flex items-center gap-1.5">
-              <Input value={nameInput} onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") saveName(); if (e.key === "Escape") setEditingName(false); }}
-                className="h-7 text-sm py-0 px-2 w-full max-w-[180px]" autoFocus />
-              <button onClick={saveName} className="text-emerald-600 hover:text-emerald-700"><Check className="w-3.5 h-3.5" /></button>
-              <button onClick={() => { setNameInput(account.name); setEditingName(false); }} className="text-slate-400 hover:text-slate-600"><X className="w-3.5 h-3.5" /></button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 group">
-              <span className="text-sm font-semibold text-slate-800 truncate">{account.name}</span>
-              <button onClick={() => { setNameInput(account.name); setEditingName(true); }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-slate-600">
-                <Pencil className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className={cn("text-[10px] font-medium uppercase tracking-wide", meta.color)}>{meta.label}</span>
-            <span className="text-[10px] text-slate-400">·</span>
-            <span className="text-[10px] text-slate-400">{meta.taxTreatment}</span>
-          </div>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-sm font-bold tabular-nums text-slate-800">{formatCurrency(account.balance, true)}</p>
-          <p className="text-[10px] text-slate-400">{(effectiveRate * 100).toFixed(1)}% growth{hasOverride ? " (custom)" : ""}</p>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={() => setExpanded(!expanded)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          <button onClick={onDelete}
-            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+    <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-slate-300 transition-colors">
+      {/* Type icon */}
+      <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", meta.bgColor)}>
+        <Icon className={cn("w-3.5 h-3.5", meta.color)} />
       </div>
 
-      {expanded && (
-        <div className="border-t border-slate-100 px-4 py-4 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Account Type</label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {ACCOUNT_TYPES.map((t) => {
-                  const m = ACCOUNT_TYPE_META[t];
-                  const TIcon = m.icon;
-                  return (
-                    <button key={t} onClick={() => onUpdate({ ...account, type: t })}
-                      className={cn("flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-medium transition-all",
-                        account.type === t ? `${m.bgColor} ${m.color} ${m.borderColor}` : "bg-white text-slate-500 border-slate-200 hover:border-slate-300")}>
-                      <TIcon className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{m.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Current Balance</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                  <Input type="number" value={account.balance || ""}
-                    onChange={(e) => onUpdate({ ...account, balance: parseFloat(e.target.value) || 0 })}
-                    className="pl-7 text-sm" min={0} step={1000} />
-                </div>
-              </div>
-              {account.type !== "cash" && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Annual Contribution</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-                    <Input type="number" value={account.annualContribution ?? ""}
-                      onChange={(e) => onUpdate({ ...account, annualContribution: parseFloat(e.target.value) || 0 })}
-                      className="pl-7 text-sm" min={0} step={500} placeholder="0" />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1">Pre-retirement only</p>
-                </div>
-              )}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Growth Rate</label>
-                  <Switch checked={hasOverride} onCheckedChange={(checked) => {
-                    if (checked) { onUpdate({ ...account, growthRateOverride: defaultGrowthRate }); }
-                    else { const { growthRateOverride: _r, ...rest } = account; onUpdate(rest as Account); }
-                  }} />
-                </div>
-                {hasOverride ? (
-                  <div className="flex items-center gap-2">
-                    <Input type="number" value={((account.growthRateOverride ?? defaultGrowthRate) * 100).toFixed(1)}
-                      onChange={(e) => onUpdate({ ...account, growthRateOverride: (parseFloat(e.target.value) || 0) / 100 })}
-                      className="text-sm w-24" min={0} max={30} step={0.1} />
-                    <span className="text-sm text-slate-500">% per year</span>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-400">Using default: {(defaultGrowthRate * 100).toFixed(1)}% (from Assumptions)</p>
-                )}
-              </div>
-            </div>
-          </div>
+      {/* Name */}
+      <Input
+        value={account.name}
+        onChange={(e) => onUpdate({ ...account, name: e.target.value })}
+        className="h-8 text-sm font-medium border border-slate-200 bg-white px-2 w-36 min-w-0 focus-visible:ring-1 focus-visible:ring-slate-300 rounded-lg"
+        placeholder="Account name"
+      />
+
+      {/* Type dropdown */}
+      <select
+        value={account.type}
+        onChange={(e) => onUpdate({ ...account, type: e.target.value as AccountType })}
+        className="h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0"
+      >
+        {ACCOUNT_TYPES.map((t) => (
+          <option key={t} value={t}>{ACCOUNT_TYPE_META[t].label}</option>
+        ))}
+      </select>
+
+      {/* Balance */}
+      <div className="relative flex-1 min-w-[110px]">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">$</span>
+        <Input
+          type="number"
+          value={account.balance || ""}
+          onChange={(e) => onUpdate({ ...account, balance: parseFloat(e.target.value) || 0 })}
+          className="h-8 text-sm pl-6 pr-2"
+          min={0}
+          step={1000}
+          placeholder="Balance"
+        />
+      </div>
+
+      {/* Annual contribution (non-cash) */}
+      {account.type !== "cash" && (
+        <div className="relative min-w-[110px]">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">$/yr</span>
+          <Input
+            type="number"
+            value={account.annualContribution ?? ""}
+            onChange={(e) => onUpdate({ ...account, annualContribution: parseFloat(e.target.value) || 0 })}
+            className="h-8 text-sm pl-8 pr-2"
+            min={0}
+            step={500}
+            placeholder="Contrib."
+          />
         </div>
       )}
+
+      {/* Custom growth rate toggle + input */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {hasOverride ? (
+          <div className="relative w-20">
+            <Input
+              type="number"
+              value={((account.growthRateOverride ?? defaultGrowthRate) * 100).toFixed(1)}
+              onChange={(e) => onUpdate({ ...account, growthRateOverride: (parseFloat(e.target.value) || 0) / 100 })}
+              className="h-8 text-xs pr-5 pl-2"
+              min={0} max={30} step={0.1}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">%</span>
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400 whitespace-nowrap">{(defaultGrowthRate * 100).toFixed(1)}%</span>
+        )}
+        <button
+          onClick={() => {
+            if (hasOverride) { const { growthRateOverride: _r, ...rest } = account; onUpdate(rest as Account); }
+            else { onUpdate({ ...account, growthRateOverride: defaultGrowthRate }); }
+          }}
+          className={cn("text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0",
+            hasOverride
+              ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+              : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
+          )}
+          title={hasOverride ? "Remove custom rate" : "Set custom growth rate"}
+        >
+          {hasOverride ? "custom" : "+rate"}
+        </button>
+      </div>
+
+      {/* Delete */}
+      <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 ml-auto">
+        <Trash2 className="w-4 h-4" />
+      </button>
     </div>
   );
 }
+
 
 export default function Accounts() {
   const { inputs, updateInput } = usePlanner();
