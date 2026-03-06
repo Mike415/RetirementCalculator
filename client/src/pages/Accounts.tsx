@@ -3,6 +3,7 @@
  * Design: "Horizon" — Warm Modernist Financial Planning
  */
 
+import { useState } from "react";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { Account, AccountType, aggregateAccounts } from "@/lib/projection";
@@ -56,7 +57,10 @@ function generateId() {
 }
 
 function AccountRow({
-  account, defaultGrowthRate, onUpdate, onDelete,
+  account,
+  defaultGrowthRate,
+  onUpdate,
+  onDelete,
 }: {
   account: Account;
   defaultGrowthRate: number;
@@ -66,91 +70,85 @@ function AccountRow({
   const meta = ACCOUNT_TYPE_META[account.type];
   const Icon = meta.icon;
   const hasOverride = account.growthRateOverride !== undefined && account.growthRateOverride !== null;
+  const [rateStr, setRateStr] = useState<string | null>(null);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: account.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, zIndex: isDragging ? 50 : undefined };
+  const displayRate = ((hasOverride ? account.growthRateOverride! : defaultGrowthRate) * 100).toFixed(1);
 
   return (
-    <div ref={setNodeRef} style={style} className={cn("flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 transition-colors", isDragging ? "shadow-lg border-slate-300" : "hover:border-slate-300")}>
-      {/* Drag handle */}
-      <button {...attributes} {...listeners} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none">
+    <div ref={setNodeRef} style={style} className={cn(
+      "grid items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 transition-colors",
+      "grid-cols-[16px_28px_140px_1fr_1fr_auto_28px]",
+      isDragging ? "shadow-lg border-slate-300" : "hover:border-slate-300"
+    )}>
+      <button {...attributes} {...listeners} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none">
         <GripVertical className="w-4 h-4" />
       </button>
-      {/* Type icon */}
       <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", meta.bgColor)}>
         <Icon className={cn("w-3.5 h-3.5", meta.color)} />
       </div>
-
-      {/* Name */}
       <Input
         value={account.name}
         onChange={(e) => onUpdate({ ...account, name: e.target.value })}
-        className="h-8 text-sm font-medium border border-slate-200 bg-white px-2 w-36 min-w-0 focus-visible:ring-1 focus-visible:ring-slate-300 rounded-lg"
+        className="h-8 text-sm font-medium border border-slate-200 bg-white px-2 focus-visible:ring-1 focus-visible:ring-slate-300 rounded-lg w-full"
         placeholder="Account name"
       />
-
-      {/* Type dropdown */}
-      <select
-        value={account.type}
-        onChange={(e) => onUpdate({ ...account, type: e.target.value as AccountType })}
-        className="h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0"
-      >
-        {ACCOUNT_TYPES.map((t) => (
-          <option key={t} value={t}>{ACCOUNT_TYPE_META[t].label}</option>
-        ))}
-      </select>
-
-      {/* Balance */}
-      <div className="relative flex-1 min-w-[110px]">
+      <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">$</span>
         <Input
           type="number"
           value={account.balance || ""}
           onChange={(e) => onUpdate({ ...account, balance: parseFloat(e.target.value) || 0 })}
-          className="h-8 text-sm pl-6 pr-2"
-          min={0}
-          step={1000}
-          placeholder="Balance"
+          className="h-8 text-sm pl-6 pr-2 w-full"
+          min={0} step={1000} placeholder="Balance"
         />
       </div>
-
-      {/* Annual contribution (non-cash) */}
-      {account.type !== "cash" && (
-        <div className="relative min-w-[110px]">
+      {account.type !== "cash" ? (
+        <div className="relative">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">$/yr</span>
           <Input
             type="number"
             value={account.annualContribution ?? ""}
             onChange={(e) => onUpdate({ ...account, annualContribution: parseFloat(e.target.value) || 0 })}
-            className="h-8 text-sm pl-8 pr-2"
-            min={0}
-            step={500}
-            placeholder="Contrib."
+            className="h-8 text-sm pl-8 pr-2 w-full"
+            min={0} step={500} placeholder="Contrib."
           />
         </div>
+      ) : (
+        <div />
       )}
-
-      {/* Custom growth rate toggle + input */}
       <div className="flex items-center gap-1 flex-shrink-0">
         {hasOverride ? (
-          <div className="relative w-20">
+          <div className="relative w-[68px]">
             <Input
-              type="number"
-              value={((account.growthRateOverride ?? defaultGrowthRate) * 100).toFixed(1)}
-              onChange={(e) => onUpdate({ ...account, growthRateOverride: (parseFloat(e.target.value) || 0) / 100 })}
-              className="h-8 text-xs pr-5 pl-2"
-              min={0} max={30} step={0.1}
+              type="text"
+              inputMode="decimal"
+              value={rateStr !== null ? rateStr : displayRate}
+              onChange={(e) => {
+                setRateStr(e.target.value);
+                const parsed = parseFloat(e.target.value);
+                if (!isNaN(parsed)) onUpdate({ ...account, growthRateOverride: parsed / 100 });
+              }}
+              onBlur={() => setRateStr(null)}
+              className="h-8 text-xs pr-5 pl-2 w-full"
+              placeholder="Rate %"
             />
             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">%</span>
           </div>
         ) : (
-          <span className="text-xs text-slate-400 whitespace-nowrap">{(defaultGrowthRate * 100).toFixed(1)}%</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap w-[68px] text-right pr-1">{displayRate}%</span>
         )}
         <button
           onClick={() => {
-            if (hasOverride) { const { growthRateOverride: _r, ...rest } = account; onUpdate(rest as Account); }
-            else { onUpdate({ ...account, growthRateOverride: defaultGrowthRate }); }
+            if (hasOverride) {
+              setRateStr(null);
+              const { growthRateOverride: _r, ...rest } = account;
+              onUpdate(rest as Account);
+            } else {
+              onUpdate({ ...account, growthRateOverride: defaultGrowthRate });
+            }
           }}
-          className={cn("text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0",
+          className={cn("text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 whitespace-nowrap",
             hasOverride
               ? "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
               : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
@@ -160,16 +158,12 @@ function AccountRow({
           {hasOverride ? "custom" : "+rate"}
         </button>
       </div>
-
-      {/* Delete */}
-      <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 ml-auto">
+      <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors">
         <Trash2 className="w-4 h-4" />
       </button>
     </div>
   );
 }
-
-
 export default function Accounts() {
   const { inputs, updateInput } = usePlanner();
   const accounts = inputs.accounts ?? [];
