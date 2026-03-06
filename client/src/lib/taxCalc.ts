@@ -975,3 +975,82 @@ export const FILING_STATUS_LABELS: Record<FilingStatus, string> = {
 export const STATE_CODES = Object.keys(STATE_TAX_DATA).sort((a, b) =>
   STATE_TAX_DATA[a].name.localeCompare(STATE_TAX_DATA[b].name)
 );
+
+// ─── Roth Conversion Net-Worth Optimizer ─────────────────────────────────────
+
+/**
+ * Settings for the Roth conversion optimizer, stored in RetirementInputs.
+ * The optimizer finds the per-year conversion schedule that maximizes
+ * net worth at the final projection year.
+ */
+export interface RothOptimizerSettings {
+  enabled: boolean;
+  /** Start age for optimizer conversions (inclusive) */
+  startAge: number;
+  /** End age for optimizer conversions (inclusive, typically 72 before RMDs) */
+  endAge: number;
+  /** Which account to convert from */
+  source: "k401" | "ira";
+  /** Optional hard annual cap in today's dollars (0 = no cap) */
+  annualCap: number;
+  /**
+   * Cached result from the last optimization run.
+   * Maps age (as string key) → optimal conversion amount for that year.
+   * Stored here so the projection engine can apply it without re-running the optimizer.
+   */
+  schedule?: Record<string, number>;
+}
+
+/**
+ * Result returned by optimizeRothConversions().
+ */
+export interface RothOptimizationResult {
+  /** Optimal conversion amount per age (key = age as number) */
+  schedule: Record<number, number>;
+  /** Final net worth with the optimized schedule */
+  optimizedNetWorth: number;
+  /** Final net worth with zero conversions (baseline) */
+  baselineNetWorth: number;
+  /** Net worth improvement vs. no conversions */
+  netWorthGain: number;
+  /** Total lifetime tax paid with optimized schedule */
+  totalTaxOptimized: number;
+  /** Total lifetime tax paid with no conversions */
+  totalTaxBaseline: number;
+  /** Tax savings vs. no conversions */
+  taxSavings: number;
+  /** Number of optimizer iterations performed */
+  iterations: number;
+}
+
+// ─── Bracket-fill helper (used internally by optimizer and as a standalone heuristic) ──
+
+export const ROTH_OPTIMIZER_BRACKETS = [
+  { label: "Top of 10% bracket", rate: 0.10 },
+  { label: "Top of 12% bracket", rate: 0.12 },
+  { label: "Top of 22% bracket", rate: 0.22 },
+  { label: "Top of 24% bracket", rate: 0.24 },
+  { label: "Top of 32% bracket", rate: 0.32 },
+  { label: "Top of 35% bracket", rate: 0.35 },
+] as const;
+
+export type RothOptimizerBracketRate = (typeof ROTH_OPTIMIZER_BRACKETS)[number]["rate"];
+
+/**
+ * Compute the room to fill up to a bracket ceiling from other taxable income.
+ * Used as a warm-start for the optimizer.
+ */
+export function computeBracketFillConversion(
+  otherTaxableIncome: number,
+  filingStatus: FilingStatus,
+  targetBracketRate: RothOptimizerBracketRate
+): number {
+  const brackets = FEDERAL_BRACKETS_2024[filingStatus];
+  const stdDed = FEDERAL_STANDARD_DEDUCTION_2024[filingStatus];
+  const targetBracket = brackets.find((b) => b.rate === targetBracketRate);
+  if (!targetBracket) return 0;
+  const grossCeiling =
+    targetBracket.max === Infinity ? Infinity : targetBracket.max + stdDed;
+  if (grossCeiling === Infinity) return Infinity;
+  return Math.max(0, grossCeiling - otherTaxableIncome);
+}

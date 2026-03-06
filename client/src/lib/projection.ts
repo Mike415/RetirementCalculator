@@ -10,7 +10,7 @@
  * - One-Time Events: cash injections/withdrawals at specific ages
  */
 
-import { FilingStatus, calculateTax } from "./taxCalc";
+import { FilingStatus, RothOptimizerSettings, calculateTax, computeBracketFillConversion } from "./taxCalc";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -203,6 +203,9 @@ export interface RetirementInputs {
   rothConversionEndAge: number;     // age to stop (typically just before RMD age 73)
   rothConversionAnnualAmount: number; // annual amount to convert (today's dollars)
   rothConversionSource: "k401" | "ira"; // which account to convert from
+  // Roth Conversion Optimizer (bracket-fill mode)
+  rothOptimizer?: RothOptimizerSettings;
+
   // Partner / Spouse
   partnerEnabled: boolean;
   partnerName: string;                  // e.g. "Alex"
@@ -258,6 +261,7 @@ export interface ProjectionRow {
   drawRothIRA: number;
   drawIRA: number;
   rmdAmount: number;  // Required Minimum Distribution enforced this year
+  rothConversionAmount: number; // Roth conversion executed this year (0 if none)
   actualSpend: number; // actual annual spend (may differ from budget if guardrail active)
   // Per-year dynamic tax fields
   taxableIncome: number;       // total ordinary taxable income this year
@@ -412,6 +416,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   const rothConversionEndAge = resolvedInputs.rothConversionEndAge ?? 72;
   const rothConversionAnnualAmount = resolvedInputs.rothConversionAnnualAmount ?? 0;
   const rothConversionSource = resolvedInputs.rothConversionSource ?? "k401";
+  // Bracket-fill optimizer
+  const rothOptimizer = resolvedInputs.rothOptimizer;
   const prevAddlHomeValues = additionalProperties.map((p) => p.homeValue);
   const prevAddlHomeLoans = additionalProperties.map((p) => p.homeLoan);
 
@@ -657,16 +663,38 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const drawFromIRA = drawAmounts.ira > 0;
 
     // ── Roth Conversion amount (needed before tax calc) ──
-    const conversionActive =
+    // Optimizer mode: compute bracket-fill amount dynamically each year.
+    // Manual mode: use the fixed rothConversionAnnualAmount.
+    const optimizerActive =
+      rothOptimizer?.enabled &&
+      age >= (rothOptimizer.startAge ?? 60) &&
+      age <= (rothOptimizer.endAge ?? 72);
+    const manualConversionActive =
+      !optimizerActive &&
       rothConversionEnabled &&
       age >= rothConversionStartAge &&
       age <= rothConversionEndAge;
-    const conversionAmount = conversionActive
-      ? Math.min(
-          rothConversionAnnualAmount * nextInflFactor,
-          rothConversionSource === "k401" ? prev401k : prevIRA
-        )
-      : 0;
+
+    // For the optimizer, we need to know taxable income WITHOUT the conversion first,
+    // then compute how much room remains to the bracket ceiling.
+    let conversionAmount = 0;
+    const conversionSource = optimizerActive
+      ? (rothOptimizer!.source ?? "k401")
+      : rothConversionSource;
+
+    if (optimizerActive) {
+      // Use the cached schedule from the optimizer result (keyed by age as string)
+      const scheduled = rothOptimizer!.schedule?.[String(age)];
+      const cap = rothOptimizer!.annualCap > 0 ? rothOptimizer!.annualCap : Infinity;
+      const sourceBalance = conversionSource === "k401" ? prev401k : prevIRA;
+      conversionAmount = Math.min(scheduled ?? 0, cap, sourceBalance);
+    } else if (manualConversionActive) {
+      conversionAmount = Math.min(
+        rothConversionAnnualAmount * nextInflFactor,
+        conversionSource === "k401" ? prev401k : prevIRA
+      );
+    }
+    const conversionActive = conversionAmount > 0;
 
     // ── Per-year dynamic tax calculation ──
     // Taxable ordinary income = wages/salary + RMD + Roth conversion amount + taxable 401k/IRA draws
@@ -768,7 +796,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     let k401: number;
     if (!retired) {
       k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor
-           - (conversionActive && rothConversionSource === "k401" ? conversionAmount : 0);
+           - (conversionActive && conversionSource === "k401" ? conversionAmount : 0);
     } else {
       k401 = prev401k * (1 + investmentGrowthRate) - drawAmounts.k401;
     }
@@ -790,10 +818,10 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     let ira: number;
     if (!retired) {
       ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor
-          - (conversionActive && rothConversionSource === "ira" ? conversionAmount : 0);
+          - (conversionActive && conversionSource === "ira" ? conversionAmount : 0);
     } else {
       ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira
-          - (conversionActive && rothConversionSource === "ira" ? conversionAmount : 0);
+          - (conversionActive && conversionSource === "ira" ? conversionAmount : 0);
     }
 
     // ── Net Worth ──
@@ -837,6 +865,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       drawRothIRA: drawAmounts.rothIRA,
       drawIRA: drawAmounts.ira,
       rmdAmount: rmdRequired,
+      rothConversionAmount: conversionAmount,
       actualSpend,
       taxableIncome,
       federalTax: taxResult.federalTax,
@@ -1234,7 +1263,7 @@ export function runProjectionWithReturns(
       budgetPeriodName: activePeriod.name, monthlyBudget,
       drawCash: 0, drawInvestments: drawFromInvestments ? 0 : 0,
       drawK401: 0, drawRoth401k: 0, drawRothIRA: 0, drawIRA: 0,
-      rmdAmount: 0, actualSpend: 0,
+      rmdAmount: 0, rothConversionAmount: 0, actualSpend: 0,
       taxableIncome: 0, federalTax: 0, stateTax: 0, totalTax: 0,
       yearEffectiveTaxRate: effectiveTaxRate, marginalBracket: 0,
     });
