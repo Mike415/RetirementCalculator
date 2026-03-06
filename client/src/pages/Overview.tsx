@@ -4,10 +4,10 @@
  */
 
 import { usePlanner } from "@/contexts/PlannerContext";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { TrendingUp, TrendingDown, Minus, Loader2, Dices } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { runMonteCarlo, MonteCarloResult, aggregateAccounts } from "@/lib/projection";
 import {
@@ -212,6 +212,50 @@ export default function Overview() {
 
   const retirementRow = projection.find((r) => r.age === inputs.retirementAge);
 
+  // ── Health Check Scorecard ──
+  // Years until broke (first year net worth goes negative)
+  const brokeRow = projection.find((r) => r.nonHomeNetWorth < 0);
+  const yearsUntilBroke = brokeRow ? brokeRow.age - inputs.currentAge : null;
+  const survivesFull = !brokeRow;
+
+  // Average effective tax rate in retirement
+  const retiredRows = projection.filter((r) => r.retired && r.taxableIncome > 0);
+  const avgRetirementTaxRate = retiredRows.length > 0
+    ? retiredRows.reduce((s, r) => s + r.yearEffectiveTaxRate, 0) / retiredRows.length
+    : 0;
+
+  // Roth vs traditional balance at retirement
+  const rothAtRetirement = retirementRow ? retirementRow.rothIRA + retirementRow.roth401k : 0;
+  const tradAtRetirement = retirementRow ? retirementRow.k401 + retirementRow.ira : 0;
+  const rothPct = (rothAtRetirement + tradAtRetirement) > 0
+    ? rothAtRetirement / (rothAtRetirement + tradAtRetirement)
+    : 0;
+
+  // Data validation warnings
+  const warnings: { level: "error" | "warn" | "info"; message: string }[] = [];
+  if (inputs.retirementAge <= inputs.currentAge) {
+    warnings.push({ level: "error", message: "Retirement age must be greater than current age." });
+  }
+  if (inputs.projectionEndAge <= inputs.retirementAge) {
+    warnings.push({ level: "error", message: "Projection end age must be greater than retirement age." });
+  }
+  const totalContribs = (inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0);
+  const IRS_401K_LIMIT_2024 = 23000;
+  if (totalContribs > IRS_401K_LIMIT_2024) {
+    warnings.push({ level: "warn", message: `Total 401(k) contributions ($${totalContribs.toLocaleString()}) exceed the 2024 IRS limit of $${IRS_401K_LIMIT_2024.toLocaleString()}. Catch-up contributions are added automatically at age 50+.` });
+  }
+  const totalIRAContribs = (inputs.rothIRAContribution ?? 0) + (inputs.iraContribution ?? 0);
+  const IRS_IRA_LIMIT_2024 = 7000;
+  if (totalIRAContribs > IRS_IRA_LIMIT_2024) {
+    warnings.push({ level: "warn", message: `Total IRA contributions ($${totalIRAContribs.toLocaleString()}) exceed the 2024 IRS limit of $${IRS_IRA_LIMIT_2024.toLocaleString()}. Catch-up adds $1,000/yr at age 50+.` });
+  }
+  if (!survivesFull && brokeRow) {
+    warnings.push({ level: "error", message: `Portfolio runs out at age ${brokeRow.age} (${brokeRow.year}). Consider reducing expenses, delaying retirement, or increasing contributions.` });
+  }
+  if (inputs.investmentGrowthRate > 0.12) {
+    warnings.push({ level: "warn", message: `Investment growth rate of ${formatPercent(inputs.investmentGrowthRate)} is aggressive. Historical long-term average is 7–10% nominal.` });
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -235,6 +279,117 @@ export default function Overview() {
             className="flex-1"
           />
           <span className="text-sm font-bold text-[#1B4332] tabular-nums w-7 text-right">{inputs.retirementAge}</span>
+        </div>
+      </div>
+
+      {/* Data Validation Warnings */}
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          {warnings.map((w, i) => (
+            <div key={i} className={cn(
+              "flex items-start gap-3 rounded-xl px-4 py-3 text-xs font-medium border",
+              w.level === "error" ? "bg-red-50 border-red-200 text-red-700" :
+              w.level === "warn" ? "bg-amber-50 border-amber-200 text-amber-700" :
+              "bg-blue-50 border-blue-200 text-blue-700"
+            )}>
+              {w.level === "error" ? <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> :
+               w.level === "warn" ? <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> :
+               <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+              <span>{w.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Health Check Scorecard */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <h2 className="font-bold text-slate-800 mb-3">Plan Health Check</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {/* Survival */}
+          <div className={cn(
+            "rounded-xl p-4 border",
+            survivesFull ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"
+          )}>
+            <div className="flex items-center gap-2 mb-1">
+              {survivesFull
+                ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                : <XCircle className="w-4 h-4 text-red-500" />}
+              <span className={cn("text-xs font-semibold uppercase tracking-wide",
+                survivesFull ? "text-emerald-700" : "text-red-600")}>
+                {survivesFull ? "Fully Funded" : "Funding Gap"}
+              </span>
+            </div>
+            <p className={cn("text-lg font-bold",
+              survivesFull ? "text-emerald-700" : "text-red-600")}>
+              {survivesFull ? `Age ${inputs.projectionEndAge}+` : `Runs out age ${brokeRow?.age}`}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              {survivesFull ? "Plan survives full projection" : `${yearsUntilBroke} yrs until broke`}
+            </p>
+          </div>
+
+          {/* Final Net Worth */}
+          <div className={cn(
+            "rounded-xl p-4 border",
+            last.netWorth > 0 ? "bg-blue-50 border-blue-200" : "bg-red-50 border-red-200"
+          )}>
+            <div className="flex items-center gap-2 mb-1">
+              {last.netWorth > 0
+                ? <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                : <XCircle className="w-4 h-4 text-red-500" />}
+              <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">Final NW</span>
+            </div>
+            <p className={cn("text-lg font-bold", last.netWorth > 0 ? "text-blue-700" : "text-red-600")}>
+              {formatCurrency(last.netWorth, true)}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Age {last.age} ({last.year})</p>
+          </div>
+
+          {/* Avg retirement tax rate */}
+          <div className={cn(
+            "rounded-xl p-4 border",
+            avgRetirementTaxRate < 0.20 ? "bg-emerald-50 border-emerald-200" :
+            avgRetirementTaxRate < 0.30 ? "bg-amber-50 border-amber-200" :
+            "bg-red-50 border-red-200"
+          )}>
+            <div className="flex items-center gap-2 mb-1">
+              {avgRetirementTaxRate < 0.20
+                ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                : avgRetirementTaxRate < 0.30
+                ? <AlertTriangle className="w-4 h-4 text-amber-500" />
+                : <XCircle className="w-4 h-4 text-red-500" />}
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Avg Tax Rate</span>
+            </div>
+            <p className={cn("text-lg font-bold",
+              avgRetirementTaxRate < 0.20 ? "text-emerald-700" :
+              avgRetirementTaxRate < 0.30 ? "text-amber-700" : "text-red-600")}>
+              {formatPercent(avgRetirementTaxRate)}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Avg effective rate in retirement</p>
+          </div>
+
+          {/* Roth diversification */}
+          <div className={cn(
+            "rounded-xl p-4 border",
+            rothPct >= 0.30 ? "bg-emerald-50 border-emerald-200" :
+            rothPct >= 0.10 ? "bg-amber-50 border-amber-200" :
+            "bg-slate-50 border-slate-200"
+          )}>
+            <div className="flex items-center gap-2 mb-1">
+              {rothPct >= 0.30
+                ? <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                : rothPct >= 0.10
+                ? <AlertTriangle className="w-4 h-4 text-amber-500" />
+                : <Minus className="w-4 h-4 text-slate-400" />}
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Roth Mix</span>
+            </div>
+            <p className={cn("text-lg font-bold",
+              rothPct >= 0.30 ? "text-emerald-700" :
+              rothPct >= 0.10 ? "text-amber-700" : "text-slate-500")}>
+              {formatPercent(rothPct)}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Roth share at retirement</p>
+          </div>
         </div>
       </div>
 

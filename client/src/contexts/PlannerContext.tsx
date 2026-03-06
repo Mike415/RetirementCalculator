@@ -70,6 +70,10 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
     annualCap: 0,
     schedule: {},
   };
+  // Employer match and catch-up contributions
+  if (base.employerMatchPercent === undefined) base.employerMatchPercent = DEFAULT_INPUTS.employerMatchPercent;
+  if (base.employerMatchLimit === undefined) base.employerMatchLimit = DEFAULT_INPUTS.employerMatchLimit;
+  if (base.catchUpEnabled === undefined) base.catchUpEnabled = DEFAULT_INPUTS.catchUpEnabled;
   // Dynamic tax filing configuration
   if (base.filingStatus === undefined) base.filingStatus = DEFAULT_INPUTS.filingStatus;
   if (base.stateCode === undefined) base.stateCode = DEFAULT_INPUTS.stateCode;

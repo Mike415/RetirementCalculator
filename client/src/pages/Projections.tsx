@@ -4,17 +4,18 @@
  */
 
 import { usePlanner } from "@/contexts/PlannerContext";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { useState } from "react";
 
-type ViewMode = "networth" | "accounts" | "cashflow";
+type ViewMode = "networth" | "accounts" | "cashflow" | "tax";
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: "networth", label: "Net Worth" },
   { id: "accounts", label: "Account Balances" },
   { id: "cashflow", label: "Cash Flow" },
+  { id: "tax", label: "Tax Analysis" },
 ];
 
 export default function Projections() {
@@ -134,7 +135,16 @@ export default function Projections() {
                       Roth IRA
                     </th>
                     <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      IRA
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
                       Total Investable
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Roth Conv.
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      RMD
                     </th>
                     <th className="px-3 py-3 text-left font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
                       Drawing From
@@ -167,6 +177,38 @@ export default function Projections() {
                     </th>
                   </>
                 )}
+
+                {viewMode === "tax" && (
+                  <>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Taxable Income
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Federal Tax
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      State Tax
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Cap Gains Tax
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Total Tax
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Eff. Rate
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Marginal
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      Roth Conv.
+                    </th>
+                    <th className="px-3 py-3 text-right font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      RMD
+                    </th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -183,7 +225,16 @@ export default function Projections() {
                   ? "Roth 401K"
                   : row.drawFromRothIRA
                   ? "Roth IRA"
+                  : row.drawFromIRA
+                  ? "IRA"
                   : "—";
+
+                // Marginal bracket color
+                const bracketColor =
+                  row.marginalBracket <= 0.12 ? "text-emerald-600" :
+                  row.marginalBracket <= 0.22 ? "text-blue-600" :
+                  row.marginalBracket <= 0.24 ? "text-amber-600" :
+                  "text-red-500";
 
                 return (
                   <tr
@@ -199,7 +250,6 @@ export default function Projections() {
                   >
                     <td className={cn(
                       "sticky left-0 px-4 py-2.5 font-semibold tabular-nums",
-                      /* Solid backgrounds required — semi-transparent colors let scrolled content bleed through */
                       isRetirementYear ? "bg-[#f0f5f2]" : isRetired ? "bg-[#fffbf0]" : "bg-white"
                     )}>
                       {row.year}
@@ -260,15 +310,29 @@ export default function Projections() {
                         <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
                           {formatCurrency(Math.max(0, row.rothIRA), true)}
                         </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                          {formatCurrency(Math.max(0, row.ira), true)}
+                        </td>
                         <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#1B4332]">
                           {formatCurrency(
                             row.cash +
                               Math.max(0, row.investments) +
                               Math.max(0, row.k401) +
                               Math.max(0, row.roth401k) +
-                              Math.max(0, row.rothIRA),
+                              Math.max(0, row.rothIRA) +
+                              Math.max(0, row.ira),
                             true
                           )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {row.rothConversionAmount > 0 ? (
+                            <span className="text-violet-600 font-medium">{formatCurrency(row.rothConversionAmount, true)}</span>
+                          ) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {row.rmdAmount > 0 ? (
+                            <span className="text-amber-600 font-medium">{formatCurrency(row.rmdAmount, true)}</span>
+                          ) : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-3 py-2.5 text-slate-500">
                           {isRetired ? (
@@ -311,6 +375,55 @@ export default function Projections() {
                         </td>
                       </>
                     )}
+
+                    {viewMode === "tax" && (
+                      <>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 font-medium">
+                          {row.taxableIncome > 0 ? formatCurrency(row.taxableIncome, true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-red-500">
+                          {row.federalTax > 0 ? formatCurrency(row.federalTax, true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-orange-500">
+                          {row.stateTax > 0 ? formatCurrency(row.stateTax, true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-amber-600">
+                          {(row.capitalGainsTax ?? 0) > 0 ? formatCurrency(row.capitalGainsTax, true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums font-bold text-red-600">
+                          {row.totalTax > 0 ? formatCurrency(row.totalTax + (row.capitalGainsTax ?? 0), true) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {row.yearEffectiveTaxRate > 0 ? (
+                            <span className={cn(
+                              "font-semibold",
+                              row.yearEffectiveTaxRate < 0.15 ? "text-emerald-600" :
+                              row.yearEffectiveTaxRate < 0.25 ? "text-amber-600" :
+                              "text-red-500"
+                            )}>
+                              {formatPercent(row.yearEffectiveTaxRate)}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {row.marginalBracket > 0 ? (
+                            <span className={cn("font-semibold", bracketColor)}>
+                              {formatPercent(row.marginalBracket)}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {row.rothConversionAmount > 0 ? (
+                            <span className="text-violet-600 font-medium">{formatCurrency(row.rothConversionAmount, true)}</span>
+                          ) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">
+                          {row.rmdAmount > 0 ? (
+                            <span className="text-amber-600 font-medium">{formatCurrency(row.rmdAmount, true)}</span>
+                          ) : <span className="text-slate-300">—</span>}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
@@ -318,6 +431,13 @@ export default function Projections() {
           </table>
         </div>
       </div>
+
+      {viewMode === "tax" && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-700 space-y-1">
+          <p className="font-semibold">Tax Analysis Notes</p>
+          <p>Federal and state brackets are inflation-adjusted each year using your assumed inflation rate ({(inputs.inflationRate * 100).toFixed(1)}%). Capital gains tax applies to the estimated gains portion (~60%) of taxable investment draws in retirement. Roth conversions are taxed as ordinary income. SS taxability uses the IRS provisional income test (0% / 50% / 85% inclusion based on combined income).</p>
+        </div>
+      )}
 
       <p className="text-[11px] text-slate-400 text-center">
         Rows highlighted in green indicate the retirement transition year. Amber rows indicate

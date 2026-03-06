@@ -892,19 +892,75 @@ export interface TaxCalculationResult {
   includeFica: boolean;
 }
 
+/**
+ * Scale a set of tax brackets by an inflation factor.
+ * Bracket thresholds are multiplied by the factor; rates are unchanged.
+ * Infinity thresholds are preserved.
+ */
+function scaleBrackets(brackets: TaxBracket[], factor: number): TaxBracket[] {
+  if (factor === 1) return brackets;
+  return brackets.map((b) => ({
+    rate: b.rate,
+    min: b.min === 0 ? 0 : Math.round(b.min * factor),
+    max: b.max === Infinity ? Infinity : Math.round(b.max * factor),
+  }));
+}
+
+/**
+ * Compute long-term capital gains tax on a given gain amount.
+ * Uses 2024 LTCG brackets, optionally inflation-adjusted.
+ * Ordinary income is needed to determine which LTCG bracket applies.
+ */
+export function calculateCapitalGainsTax(
+  gainAmount: number,
+  ordinaryIncome: number,
+  filingStatus: FilingStatus,
+  yearOffset: number = 0,
+  inflationRate: number = 0.025
+): number {
+  if (gainAmount <= 0) return 0;
+  const factor = Math.pow(1 + inflationRate, yearOffset);
+  // 2024 LTCG thresholds (taxable income, after standard deduction)
+  const LTCG_THRESHOLDS_2024: Record<FilingStatus, { rate15: number; rate20: number }> = {
+    single:            { rate15: 47025,  rate20: 518900 },
+    married_joint:     { rate15: 94050,  rate20: 583750 },
+    married_separate:  { rate15: 47025,  rate20: 291850 },
+    head_of_household: { rate15: 63000,  rate20: 551350 },
+  };
+  const thresholds = LTCG_THRESHOLDS_2024[filingStatus];
+  const rate15 = Math.round(thresholds.rate15 * factor);
+  const rate20 = Math.round(thresholds.rate20 * factor);
+  // Ordinary income determines the "stacking" base for LTCG
+  const stackBase = ordinaryIncome;
+  let tax = 0;
+  // Portion of gains in 0% zone
+  const in0 = Math.max(0, Math.min(gainAmount, rate15 - stackBase));
+  // Portion of gains in 15% zone
+  const in15 = Math.max(0, Math.min(gainAmount - in0, rate20 - Math.max(stackBase, rate15)));
+  // Remainder in 20% zone
+  const in20 = Math.max(0, gainAmount - in0 - in15);
+  tax = in15 * 0.15 + in20 * 0.20;
+  return tax;
+}
+
 export function calculateTax(
   grossIncome: number,
   filingStatus: FilingStatus,
   stateCode: string,
-  includeFica: boolean = true
+  includeFica: boolean = true,
+  yearOffset: number = 0,
+  inflationRate: number = 0.025
 ): TaxCalculationResult {
   const stateInfo = STATE_TAX_DATA[stateCode];
   const stateName = stateInfo?.name ?? stateCode;
+  // Inflation-adjustment factor for brackets and standard deductions
+  const factor = yearOffset > 0 ? Math.pow(1 + inflationRate, yearOffset) : 1;
 
   // ── Federal ──
-  const federalStdDeduction = FEDERAL_STANDARD_DEDUCTION_2024[filingStatus];
+  const federalStdDeduction = Math.round(FEDERAL_STANDARD_DEDUCTION_2024[filingStatus] * factor);
   const federalTaxableIncome = Math.max(0, grossIncome - federalStdDeduction);
-  const federalBrackets = FEDERAL_BRACKETS_2024[filingStatus];
+  const federalBracketsRaw = FEDERAL_BRACKETS_2024[filingStatus];
+  const federalBrackets = scaleBrackets(federalBracketsRaw, factor);
   const federalTax = calcTaxFromBrackets(federalTaxableIncome, federalBrackets);
   const federalEffectiveRate = grossIncome > 0 ? federalTax / grossIncome : 0;
 
@@ -918,21 +974,23 @@ export function calculateTax(
   let stateTax = 0;
   let stateTaxableIncome = 0;
   if (stateInfo && stateInfo.brackets) {
-    const stateBrackets =
+    const stateBracketsRaw =
       stateInfo.brackets[filingStatus] ??
       stateInfo.brackets.single;
-    const stateStdDeduction =
+    const stateBrackets = scaleBrackets(stateBracketsRaw, factor);
+    const stateStdDeductionRaw =
       (stateInfo.standardDeduction[filingStatus] ?? stateInfo.standardDeduction.single) || 0;
+    const stateStdDeduction = Math.round(stateStdDeductionRaw * factor);
     stateTaxableIncome = Math.max(0, grossIncome - stateStdDeduction);
     stateTax = calcTaxFromBrackets(stateTaxableIncome, stateBrackets);
   }
   const stateEffectiveRate = grossIncome > 0 ? stateTax / grossIncome : 0;
 
   // ── FICA (employee share) ──
-  // Social Security: 6.2% on wages up to $168,600 (2024 wage base)
+  // Social Security: 6.2% on wages up to $168,600 (2024 wage base, inflation-adjusted)
   // Medicare: 1.45% on all wages + 0.9% additional on wages over $200K single / $250K MFJ
-  const SS_WAGE_BASE = 168600;
-  const ADDITIONAL_MEDICARE_THRESHOLD = filingStatus === "married_joint" ? 250000 : 200000;
+  const SS_WAGE_BASE = Math.round(168600 * factor);
+  const ADDITIONAL_MEDICARE_THRESHOLD = Math.round((filingStatus === "married_joint" ? 250000 : 200000) * factor);
   let ficaTax = 0;
   if (includeFica) {
     const ssTax = Math.min(grossIncome, SS_WAGE_BASE) * 0.062;

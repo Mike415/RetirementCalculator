@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/format";
 import { Account, AccountType, aggregateAccounts } from "@/lib/projection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CurrencyInput, NumberInput, SectionCard } from "@/components/InputField";
+import { CurrencyInput, NumberInput, PercentInput, SectionCard } from "@/components/InputField";
 import { cn } from "@/lib/utils";
 import {
   Banknote, TrendingUp, Building2, Leaf, Shield, BookOpen, HelpCircle,
@@ -392,6 +392,48 @@ export default function Accounts() {
           </DndContext>
         )}
       </div>
+
+      {/* Employer Match & Catch-Up */}
+      <SectionCard title="Employer Match & Catch-Up Contributions" description="Employer 401(k) match and automatic SECURE 2.0 catch-up contributions at age 50+.">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <PercentInput
+              label="Employer Match %"
+              value={inputs.employerMatchPercent ?? 0}
+              onChange={(v) => updateInput("employerMatchPercent", v)}
+            />
+            <p className="text-[10px] text-slate-400">Employer matches this % of your contribution (e.g., 50% = $0.50 per $1)</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <PercentInput
+              label="Match Up To (% of Salary)"
+              value={inputs.employerMatchLimit ?? 0.06}
+              onChange={(v) => updateInput("employerMatchLimit", v)}
+            />
+            <p className="text-[10px] text-slate-400">Match applies on first X% of gross salary contributed</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Catch-Up Contributions</label>
+            <button
+              onClick={() => updateInput("catchUpEnabled", !(inputs.catchUpEnabled ?? true))}
+              className={cn(
+                "flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-sm font-semibold transition-all h-10",
+                (inputs.catchUpEnabled ?? true)
+                  ? "bg-[#1B4332] border-[#1B4332] text-white"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
+              )}
+            >
+              {(inputs.catchUpEnabled ?? true) ? "Enabled (SECURE 2.0)" : "Disabled"}
+            </button>
+            <p className="text-[10px] text-slate-400">+$7,500/yr to 401k at 50+; +$11,250 at 60–63; +$1,000/yr to IRA at 50+</p>
+          </div>
+        </div>
+        {(inputs.employerMatchPercent ?? 0) > 0 && (
+          <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-xs text-emerald-700">
+            <strong>Estimated annual match:</strong> {formatCurrency(Math.min((inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0), (inputs.currentGrossIncome ?? 0) * (inputs.employerMatchLimit ?? 0.06)) * (inputs.employerMatchPercent ?? 0))} based on current salary and contributions. Match goes into your traditional 401(k).
+          </div>
+        )}
+      </SectionCard>
 
       {/* Contribution Limits Reference */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-5">

@@ -10,7 +10,7 @@
  * - One-Time Events: cash injections/withdrawals at specific ages
  */
 
-import { FilingStatus, RothOptimizerSettings, calculateTax, computeBracketFillConversion } from "./taxCalc";
+import { FilingStatus, RothOptimizerSettings, calculateTax, calculateCapitalGainsTax, computeBracketFillConversion } from "./taxCalc";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,6 +178,11 @@ export interface RetirementInputs {
   roth401kContribution: number;
   rothIRAContribution: number;
   iraContribution: number;          // traditional IRA contribution
+  // Employer match (optional)
+  employerMatchPercent?: number;    // e.g. 0.04 = 4% match on employee contribution
+  employerMatchLimit?: number;      // e.g. 0.06 = match up to 6% of salary
+  // Catch-up contributions: automatically applied at age 50+ (IRS SECURE 2.0 rules)
+  catchUpEnabled?: boolean;         // default true — auto-applies IRS catch-up limits at 50+
 
   // Social Security
   socialSecurityEnabled: boolean;
@@ -269,6 +274,8 @@ export interface ProjectionRow {
   totalTax: number;            // total tax (federal + state + FICA if enabled)
   yearEffectiveTaxRate: number; // effective rate used for this year's calculations
   marginalBracket: number;     // federal marginal bracket rate
+  capitalGainsTax: number;     // LTCG tax on investment account draws (retirement only)
+  investmentGains: number;     // estimated gains portion of investment draw (retirement only)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -416,6 +423,11 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   const rothConversionSource = resolvedInputs.rothConversionSource ?? "k401";
   // Bracket-fill optimizer
   const rothOptimizer = resolvedInputs.rothOptimizer;
+  // Employer match settings
+  const employerMatchPercent = resolvedInputs.employerMatchPercent ?? 0;
+  const employerMatchLimit = resolvedInputs.employerMatchLimit ?? 0.06; // match up to 6% of salary
+  // Catch-up contributions (SECURE 2.0): age 50+ adds $7,500/yr to 401k, $1,000/yr to IRA
+  const catchUpEnabled = resolvedInputs.catchUpEnabled !== false; // default true
   const prevAddlHomeValues = additionalProperties.map((p) => p.homeValue);
   const prevAddlHomeLoans = additionalProperties.map((p) => p.homeLoan);
 
@@ -715,24 +727,38 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const conversionActive = conversionAmount > 0;
 
     // ── Per-year dynamic tax calculation ──
-    // Taxable ordinary income = wages/salary + RMD + Roth conversion amount + taxable 401k/IRA draws
-    // + alternative income phases (rental, pension, consulting, etc.) — always taxable
-    // (Roth draws are tax-free; SS is partially taxable but we simplify to 85% inclusion)
-    const taxableWages = !retired ? (baseIncome + partnerBaseIncome) : 0;
-    // For retirement: taxable income = RMD + any 401k/IRA draws + 85% of SS
+    // Pre-tax 401k contributions reduce taxable wages (traditional 401k only, not Roth)
+    const preTax401kContrib = !retired ? k401Contribution * nextInflFactor : 0;
+    const preTaxIRAContrib = !retired ? iraContribution * nextInflFactor : 0;
+    const taxableWages = !retired
+      ? Math.max(0, baseIncome + partnerBaseIncome - preTax401kContrib - preTaxIRAContrib)
+      : 0;
+    // For retirement: taxable income = RMD + any 401k/IRA draws + SS (income-tested portion)
     const taxable401kDraw = retired ? (drawAmounts.k401 + drawAmounts.ira) : 0;
-    const taxableSSIncome = retired ? socialSecurityIncome * 0.85 : 0;
+    // SS taxability: IRS provisional income test (simplified to 85% for high-income retirees)
+    // Provisional income = AGI + 50% of SS. If > $44K (MFJ) / $34K (single), 85% is taxable.
+    // We use the 85% rule for simplicity (conservative, correct for most retirees).
+    const provisionalIncome = taxable401kDraw + additionalPhaseIncome + conversionAmount + socialSecurityIncome * 0.5;
+    const ssTaxableThreshold = (filingStatus === "married_joint") ? 44000 : 34000;
+    const ssTaxablePct = provisionalIncome > ssTaxableThreshold ? 0.85 : provisionalIncome > (ssTaxableThreshold * 0.727) ? 0.50 : 0;
+    const taxableSSIncome = retired ? socialSecurityIncome * ssTaxablePct : 0;
     const taxableConversion = conversionAmount; // Roth conversion is always ordinary income
     // Alternative income phases (rental income, pensions, consulting, etc.) are taxable
     // in all years — they reduce account draws but still count as ordinary income for taxes.
     const taxableAltIncome = additionalPhaseIncome;
     const taxableIncome = taxableWages + taxable401kDraw + taxableSSIncome + taxableConversion + taxableAltIncome;
-    // Compute tax using the real bracket table
-    const taxResult = calculateTax(taxableIncome, filingStatus, stateCode, includeFica && !retired);
+    // Compute tax using inflation-adjusted brackets (yearOffset = years from projection start)
+    const taxResult = calculateTax(taxableIncome, filingStatus, stateCode, includeFica && !retired, yearsFromStart, inflationRate);
     // Always use the dynamic rate from the bracket calculation.
     // When taxableIncome is 0 (e.g. a year with no income), the effective rate is also 0.
     const yearEffectiveTaxRate = taxResult.totalEffectiveRate;
     const marginalBracket = taxResult.federalMarginalRate;
+    // Capital gains tax on investment draws (retirement only)
+    // Investment draws are assumed to be ~60% gains (long-term) for a diversified portfolio
+    const investmentGains = retired ? drawAmounts.investments * 0.60 : 0;
+    const capitalGainsTax = retired && investmentGains > 0
+      ? calculateCapitalGainsTax(investmentGains, taxableIncome, filingStatus, yearsFromStart, inflationRate)
+      : 0;
 
     // ── Income ──
     const income = effectiveIncome;
@@ -813,6 +839,23 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // conversionActive and conversionAmount are computed above (before tax calc)
     // so they can be included in taxable income. Account adjustments are below.
 
+    // ── Catch-up contributions (SECURE 2.0) ──
+    // Age 50+: +$7,500/yr to 401k (traditional or Roth); +$1,000/yr to IRA
+    // Age 60-63: SECURE 2.0 "super catch-up" = $11,250 instead of $7,500 for 401k
+    const catchUp401k = catchUpEnabled && !retired && age >= 50
+      ? (age >= 60 && age <= 63 ? 11250 : 7500) * nextInflFactor
+      : 0;
+    const catchUpIRA = catchUpEnabled && !retired && age >= 50 ? 1000 * nextInflFactor : 0;
+
+    // ── Employer match ──
+    // Match = min(employee contribution, matchLimit% of salary) * matchPercent
+    // Employer match goes into traditional 401k regardless of employee contribution type
+    const totalEmployeeContrib = (k401Contribution + roth401kContribution) * nextInflFactor;
+    const matchableContrib = Math.min(totalEmployeeContrib, baseIncome * employerMatchLimit);
+    const employerMatch = !retired && employerMatchPercent > 0
+      ? matchableContrib * employerMatchPercent
+      : 0;
+
     // ── 401K ──
     // For optimizer mode, conversionFrom401k is the per-source amount.
     // For manual mode, conversionSource determines which account is debited.
@@ -821,15 +864,17 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       : (conversionActive && conversionSource === "k401" ? conversionAmount : 0);
     let k401: number;
     if (!retired) {
-      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor - debitFrom401k;
+      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor + catchUp401k + employerMatch - debitFrom401k;
     } else {
       k401 = prev401k * (1 + investmentGrowthRate) - drawAmounts.k401 - debitFrom401k;
     }
     // ── Roth 401K ──
+    // Note: Roth 401k is exempt from RMDs under SECURE 2.0 (effective 2024)
     let roth401k: number;
     if (!retired) {
       roth401k = prevRoth401k * (1 + investmentGrowthRate) + roth401kContribution * nextInflFactor;
     } else {
+      // Roth 401k: no RMD required (SECURE 2.0 exemption), only draw if needed for spending
       roth401k = prevRoth401k * (1 + investmentGrowthRate) - drawAmounts.roth401k;
     }
     // ── Roth IRA ──
@@ -845,7 +890,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       : (conversionActive && conversionSource === "ira" ? conversionAmount : 0);
     let ira: number;
     if (!retired) {
-      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor - debitFromIRA;
+      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor + catchUpIRA - debitFromIRA;
     } else {
       ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira - debitFromIRA;
     }
@@ -899,6 +944,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       totalTax: taxResult.totalTax,
       yearEffectiveTaxRate,
       marginalBracket,
+      capitalGainsTax,
+      investmentGains,
     });
 
     // ── Update prev values ──
@@ -1044,6 +1091,11 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   rothConversionEndAge: 72,
   rothConversionAnnualAmount: 50000,
   rothConversionSource: "k401" as const,
+  // Employer match (disabled by default)
+  employerMatchPercent: 0,
+  employerMatchLimit: 0.06,
+  // Catch-up contributions (enabled by default)
+  catchUpEnabled: true,
   // Dynamic tax filing configuration
   filingStatus: "married_joint" as FilingStatus,
   stateCode: "CA",
@@ -1305,6 +1357,7 @@ export function runProjectionWithReturns(
       rmdAmount: 0, rothConversionAmount: 0, actualSpend: 0,
       taxableIncome: 0, federalTax: 0, stateTax: 0, totalTax: 0,
       yearEffectiveTaxRate: mcYearEffectiveRate, marginalBracket: mcTaxResult.federalMarginalRate,
+      capitalGainsTax: 0, investmentGains: 0,
     });
 
     prevHomeValue = currentHomeValue;
