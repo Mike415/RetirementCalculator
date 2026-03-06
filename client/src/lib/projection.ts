@@ -478,10 +478,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         drawAmounts[acct] = draw;
         remaining -= draw;
       }
-      // If still remaining (all accounts exhausted), draw from investments as fallback
-      if (remaining > 0) {
-        drawAmounts["investments"] += remaining;
-      }
+      // If still remaining (all accounts exhausted), do NOT add phantom draws.
+      // The net worth will go negative naturally; inflating draw amounts causes
+      // the Annual Withdrawals by Source chart to grow exponentially.
     }
 
     // Legacy draw flags (kept for backward compat with Projections Table)
