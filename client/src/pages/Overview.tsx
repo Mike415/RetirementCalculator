@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 import { TrendingUp, TrendingDown, Minus, Loader2, Dices } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
-import { runMonteCarlo, MonteCarloResult } from "@/lib/projection";
+import { runMonteCarlo, MonteCarloResult, aggregateAccounts } from "@/lib/projection";
 import {
   Area,
   AreaChart,
@@ -154,21 +154,11 @@ export default function Overview() {
 
   // Compute current net worth directly from inputs (same formula as Accounts page)
   // projection[0] is end-of-year-1 after growth/income/expenses — not today's snapshot
-  const currentNetWorth =
-    inputs.currentCash +
-    inputs.currentInvestments +
-    inputs.current401k +
-    inputs.currentRoth401k +
-    inputs.currentRothIRA +
-    inputs.currentIRA +
-    (inputs.homeValue - inputs.homeLoan);
+  const agg = aggregateAccounts(inputs.accounts ?? []);
   const currentNonHomeNetWorth =
-    inputs.currentCash +
-    inputs.currentInvestments +
-    inputs.current401k +
-    inputs.currentRoth401k +
-    inputs.currentRothIRA +
-    inputs.currentIRA;
+    agg.currentCash + agg.currentInvestments + agg.current401k +
+    agg.currentRoth401k + agg.currentRothIRA + agg.currentIRA;
+  const currentNetWorth = currentNonHomeNetWorth + (inputs.homeValue - inputs.homeLoan);
 
   // Chart data — sample every year
   const chartData = projection.map((r) => ({
@@ -279,26 +269,26 @@ export default function Overview() {
 
       {/* Net Worth Chart */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4">
-          <div className="min-w-0">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
             <h2 className="font-bold text-slate-800 mb-0.5">Net Worth Projection</h2>
             <p className="text-xs text-slate-400">
               {showMonteCarlo && mcData
-                ? "1,000 simulations — 10th / 50th / 90th percentile"
+                ? "1,000 simulations with randomized annual returns — 10th / 50th / 90th percentile"
                 : "Total, non-home, and inflation-adjusted net worth over time"}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {mcStale && (
-              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full whitespace-nowrap">
-                Re-run
+              <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">
+                Inputs changed — re-run
               </span>
             )}
             <button
               onClick={showMonteCarlo && mcData ? () => setShowMonteCarlo(false) : handleRunMonteCarlo}
               disabled={mcRunning}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border whitespace-nowrap",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
                 showMonteCarlo && mcData
                   ? "bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]"
                   : "bg-white text-slate-600 border-slate-200 hover:border-[#1B4332] hover:text-[#1B4332]"
@@ -309,7 +299,7 @@ export default function Overview() {
               ) : (
                 <Dices className="h-3.5 w-3.5" />
               )}
-              {mcRunning ? "Running..." : showMonteCarlo && mcData ? "MC: ON" : "Monte Carlo"}
+              {mcRunning ? "Running..." : showMonteCarlo && mcData ? "Monte Carlo ON" : "Monte Carlo"}
             </button>
           </div>
         </div>
