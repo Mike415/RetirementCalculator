@@ -219,8 +219,8 @@ export default function Distribution() {
       try {
         const result = optimizeRothConversions(inputs, optimizer);
         setOptimizerResult(result);
-        // Persist the schedule so the main projection uses it
-        const scheduleStr: Record<string, number> = {};
+        // Persist the schedule (ConversionScheduleEntry per age) so the main projection uses it
+        const scheduleStr: Record<string, { k401: number; ira: number }> = {};
         for (const [k, v] of Object.entries(result.schedule)) {
           scheduleStr[String(k)] = v;
         }
@@ -248,20 +248,31 @@ export default function Distribution() {
       rmdAmount: Math.round(r.rmdAmount),
     }));
 
+  // Helper: extract total conversion from a schedule entry (new or legacy format)
+  function scheduleEntryTotal(v: { k401: number; ira: number } | number | undefined): number {
+    if (v === undefined || v === null) return 0;
+    if (typeof v === "number") return v;
+    return (v.k401 ?? 0) + (v.ira ?? 0);
+  }
+
   // ── Optimizer schedule chart data ──
   const optimizerChartData = optimizerResult
     ? Object.entries(optimizerResult.schedule)
-        .map(([age, amount]) => ({
+        .map(([age, entry]) => ({
           age: Number(age),
-          amount: Math.round(amount as number),
+          amount: Math.round((entry.k401 ?? 0) + (entry.ira ?? 0)),
+          k401: Math.round(entry.k401 ?? 0),
+          ira: Math.round(entry.ira ?? 0),
         }))
         .filter((d) => d.amount > 0)
         .sort((a, b) => a.age - b.age)
     : optimizer.schedule
     ? Object.entries(optimizer.schedule)
-        .map(([age, amount]) => ({
+        .map(([age, v]) => ({
           age: Number(age),
-          amount: Math.round(amount as number),
+          amount: Math.round(scheduleEntryTotal(v as any)),
+          k401: typeof v === "object" && v !== null ? Math.round((v as any).k401 ?? 0) : (typeof v === "number" ? Math.round(v) : 0),
+          ira: typeof v === "object" && v !== null ? Math.round((v as any).ira ?? 0) : 0,
         }))
         .filter((d) => d.amount > 0)
         .sort((a, b) => a.age - b.age)
@@ -646,14 +657,11 @@ export default function Distribution() {
             </div>
             <div>
               <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Convert From</label>
-              <select
-                value={optimizer.source}
-                onChange={(e) => updateOptimizer({ source: e.target.value as "k401" | "ira" })}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 [font-size:16px]"
-              >
-                <option value="k401">401(k)</option>
-                <option value="ira">Traditional IRA</option>
-              </select>
+              <div className="w-full px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium flex items-center gap-1.5">
+                <span className="text-emerald-600">✓</span>
+                Both 401(k) &amp; IRA
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Optimized per source</p>
             </div>
             <div>
               <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Annual Cap</label>
@@ -709,10 +717,10 @@ export default function Distribution() {
                 <ResultCard
                   label="Total Converted"
                   value={formatCurrency(
-                    Object.values(optimizerResult.schedule).reduce((s, v) => s + (v as number), 0),
+                    Object.values(optimizerResult.schedule).reduce((s, v) => s + (v.k401 ?? 0) + (v.ira ?? 0), 0),
                     true
                   )}
-                  sub={`over ${Object.values(optimizerResult.schedule).filter(v => (v as number) > 0).length} years`}
+                  sub={`over ${Object.values(optimizerResult.schedule).filter(v => (v.k401 ?? 0) + (v.ira ?? 0) > 0).length} years`}
                   positive
                 />
               </div>
@@ -741,11 +749,9 @@ export default function Distribution() {
                         width={72}
                       />
                       <Tooltip content={<OptimizerTooltip />} />
-                      <Bar dataKey="amount" name="Convert" radius={[4, 4, 0, 0]}>
-                        {optimizerChartData.map((_, i) => (
-                          <Cell key={i} fill="#059669" />
-                        ))}
-                      </Bar>
+                      <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" iconSize={8} />
+                      <Bar dataKey="k401" name="From 401(k)" stackId="conv" fill="#2563eb" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="ira" name="From IRA" stackId="conv" fill="#059669" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -761,20 +767,33 @@ export default function Distribution() {
                     <thead>
                       <tr className="border-b border-slate-100">
                         <th className="text-left py-1.5 px-2 text-slate-500 font-semibold">Age</th>
-                        <th className="text-right py-1.5 px-2 text-slate-500 font-semibold">Convert Amount</th>
+                        <th className="text-right py-1.5 px-2 text-slate-500 font-semibold">From 401(k)</th>
+                        <th className="text-right py-1.5 px-2 text-slate-500 font-semibold">From IRA</th>
+                        <th className="text-right py-1.5 px-2 text-slate-500 font-semibold">Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {Object.entries(optimizerResult.schedule)
                         .sort(([a], [b]) => Number(a) - Number(b))
-                        .map(([age, amount]) => (
-                          <tr key={age} className="border-b border-slate-50 hover:bg-slate-50">
-                            <td className="py-1.5 px-2 font-medium text-slate-700">Age {age}</td>
-                            <td className="py-1.5 px-2 text-right tabular-nums font-semibold text-emerald-700">
-                              {(amount as number) > 0 ? formatCurrency(amount as number) : <span className="text-slate-300">—</span>}
-                            </td>
-                          </tr>
-                        ))}
+                        .map(([age, entry]) => {
+                          const k401amt = entry.k401 ?? 0;
+                          const iraAmt = entry.ira ?? 0;
+                          const total = k401amt + iraAmt;
+                          return (
+                            <tr key={age} className="border-b border-slate-50 hover:bg-slate-50">
+                              <td className="py-1.5 px-2 font-medium text-slate-700">Age {age}</td>
+                              <td className="py-1.5 px-2 text-right tabular-nums text-blue-700">
+                                {k401amt > 0 ? formatCurrency(k401amt) : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="py-1.5 px-2 text-right tabular-nums text-emerald-700">
+                                {iraAmt > 0 ? formatCurrency(iraAmt) : <span className="text-slate-300">—</span>}
+                              </td>
+                              <td className="py-1.5 px-2 text-right tabular-nums font-semibold text-slate-800">
+                                {total > 0 ? formatCurrency(total) : <span className="text-slate-300">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>

@@ -678,16 +678,36 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // For the optimizer, we need to know taxable income WITHOUT the conversion first,
     // then compute how much room remains to the bracket ceiling.
     let conversionAmount = 0;
+    let conversionFrom401k = 0;  // portion of conversion drawn from 401(k)
+    let conversionFromIRA = 0;   // portion of conversion drawn from IRA
     const conversionSource = optimizerActive
       ? (rothOptimizer!.source ?? "k401")
       : rothConversionSource;
 
     if (optimizerActive) {
-      // Use the cached schedule from the optimizer result (keyed by age as string)
-      const scheduled = rothOptimizer!.schedule?.[String(age)];
+      // Read per-source amounts from the schedule entry.
+      // Schedule values may be ConversionScheduleEntry {k401, ira} (new) or a plain number (legacy).
+      const entry = rothOptimizer!.schedule?.[String(age)];
       const cap = rothOptimizer!.annualCap > 0 ? rothOptimizer!.annualCap : Infinity;
-      const sourceBalance = conversionSource === "k401" ? prev401k : prevIRA;
-      conversionAmount = Math.min(scheduled ?? 0, cap, sourceBalance);
+      if (entry !== undefined && typeof entry === "object" && entry !== null) {
+        // New format: per-source amounts
+        const e = entry as { k401: number; ira: number };
+        conversionFrom401k = Math.min(e.k401 ?? 0, prev401k);
+        conversionFromIRA = Math.min(e.ira ?? 0, prevIRA);
+        // Enforce total cap
+        const total = conversionFrom401k + conversionFromIRA;
+        if (cap < total) {
+          const ratio = cap / total;
+          conversionFrom401k *= ratio;
+          conversionFromIRA *= ratio;
+        }
+      } else if (typeof entry === "number") {
+        // Legacy format: single number, use deprecated source field
+        const legacySource = rothOptimizer!.source ?? "k401";
+        if (legacySource === "k401") conversionFrom401k = Math.min(entry, prev401k, cap);
+        else conversionFromIRA = Math.min(entry, prevIRA, cap);
+      }
+      conversionAmount = conversionFrom401k + conversionFromIRA;
     } else if (manualConversionActive) {
       conversionAmount = Math.min(
         rothConversionAnnualAmount * nextInflFactor,
@@ -797,12 +817,16 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // so they can be included in taxable income. Account adjustments are below.
 
     // ── 401K ──
+    // For optimizer mode, conversionFrom401k is the per-source amount.
+    // For manual mode, conversionSource determines which account is debited.
+    const debitFrom401k = optimizerActive
+      ? conversionFrom401k
+      : (conversionActive && conversionSource === "k401" ? conversionAmount : 0);
     let k401: number;
     if (!retired) {
-      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor
-           - (conversionActive && conversionSource === "k401" ? conversionAmount : 0);
+      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor - debitFrom401k;
     } else {
-      k401 = prev401k * (1 + investmentGrowthRate) - drawAmounts.k401;
+      k401 = prev401k * (1 + investmentGrowthRate) - drawAmounts.k401 - debitFrom401k;
     }
     // ── Roth 401K ──
     let roth401k: number;
@@ -819,13 +843,14 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       rothIRA = prevRothIRA * (1 + investmentGrowthRate) - drawAmounts.rothIRA + conversionAmount;
     }
     // ── Traditional IRA ──
+    const debitFromIRA = optimizerActive
+      ? conversionFromIRA
+      : (conversionActive && conversionSource === "ira" ? conversionAmount : 0);
     let ira: number;
     if (!retired) {
-      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor
-          - (conversionActive && conversionSource === "ira" ? conversionAmount : 0);
+      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor - debitFromIRA;
     } else {
-      ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira
-          - (conversionActive && conversionSource === "ira" ? conversionAmount : 0);
+      ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira - debitFromIRA;
     }
 
     // ── Net Worth ──

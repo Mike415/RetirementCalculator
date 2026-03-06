@@ -979,6 +979,15 @@ export const STATE_CODES = Object.keys(STATE_TAX_DATA).sort((a, b) =>
 // ─── Roth Conversion Net-Worth Optimizer ─────────────────────────────────────
 
 /**
+ * Per-year conversion amounts for both source accounts.
+ * The optimizer optimizes both simultaneously.
+ */
+export interface ConversionScheduleEntry {
+  k401: number;  // amount to convert from 401(k) this year
+  ira: number;   // amount to convert from IRA this year
+}
+
+/**
  * Settings for the Roth conversion optimizer, stored in RetirementInputs.
  * The optimizer finds the per-year conversion schedule that maximizes
  * net worth at the final projection year.
@@ -989,24 +998,27 @@ export interface RothOptimizerSettings {
   startAge: number;
   /** End age for optimizer conversions (inclusive, typically 72 before RMDs) */
   endAge: number;
-  /** Which account to convert from */
-  source: "k401" | "ira";
-  /** Optional hard annual cap in today's dollars (0 = no cap) */
+  /**
+   * @deprecated Use the combined schedule instead. Kept for backward compatibility.
+   * The optimizer now converts from both 401(k) and IRA simultaneously.
+   */
+  source?: "k401" | "ira";
+  /** Optional hard annual cap on TOTAL conversion per year in today's dollars (0 = no cap) */
   annualCap: number;
   /**
    * Cached result from the last optimization run.
-   * Maps age (as string key) → optimal conversion amount for that year.
-   * Stored here so the projection engine can apply it without re-running the optimizer.
+   * Maps age (as string key) → { k401: number, ira: number } per-source amounts.
+   * Also accepts legacy Record<string, number> for backward compatibility.
    */
-  schedule?: Record<string, number>;
+  schedule?: Record<string, ConversionScheduleEntry | number>;
 }
 
 /**
  * Result returned by optimizeRothConversions().
  */
 export interface RothOptimizationResult {
-  /** Optimal conversion amount per age (key = age as number) */
-  schedule: Record<number, number>;
+  /** Optimal per-source conversion amounts per age */
+  schedule: Record<number, ConversionScheduleEntry>;
   /** Final net worth with the optimized schedule */
   optimizedNetWorth: number;
   /** Final net worth with zero conversions (baseline) */
