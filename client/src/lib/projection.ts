@@ -139,8 +139,7 @@ export interface RetirementInputs {
   // Income
   currentGrossIncome: number;
   incomeGrowthRate: number; // e.g. 0.025
-  effectiveTaxRate: number; // e.g. 0.45 — fallback if dynamic tax not configured
-  // Tax filing configuration — enables per-year dynamic tax calculation
+  // Tax filing configuration — drives per-year dynamic tax calculation
   filingStatus: FilingStatus;  // e.g. "married_joint"
   stateCode: string;           // e.g. "CA"
   includeFica: boolean;        // whether to include FICA in effective rate
@@ -350,7 +349,6 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     projectionEndAge,
     currentGrossIncome,
     incomeGrowthRate,
-    effectiveTaxRate,
     currentCash,
     currentInvestments,
     current401k,
@@ -731,10 +729,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const taxableIncome = taxableWages + taxable401kDraw + taxableSSIncome + taxableConversion + taxableAltIncome;
     // Compute tax using the real bracket table
     const taxResult = calculateTax(taxableIncome, filingStatus, stateCode, includeFica && !retired);
-    // Use dynamic rate if taxable income > 0, otherwise fall back to the static effectiveTaxRate
-    const yearEffectiveTaxRate = taxableIncome > 0
-      ? taxResult.totalEffectiveRate
-      : effectiveTaxRate;
+    // Always use the dynamic rate from the bracket calculation.
+    // When taxableIncome is 0 (e.g. a year with no income), the effective rate is also 0.
+    const yearEffectiveTaxRate = taxResult.totalEffectiveRate;
     const marginalBracket = taxResult.federalMarginalRate;
 
     // ── Income ──
@@ -981,7 +978,6 @@ export const DEFAULT_INPUTS: RetirementInputs = {
 
   currentGrossIncome: 150000,
   incomeGrowthRate: 0.03,
-  effectiveTaxRate: 0.28,
 
   // Dynamic accounts list (source of truth for balances)
   accounts: [
@@ -1101,9 +1097,13 @@ export function runProjectionWithReturns(
 
   const rows: ProjectionRow[] = [];
   const years = resolvedInputs.projectionEndAge - resolvedInputs.currentAge;
+  // Dynamic tax config for Monte Carlo
+  const mcFilingStatus: FilingStatus = resolvedInputs.filingStatus ?? "married_joint";
+  const mcStateCode = resolvedInputs.stateCode ?? "CA";
+  const mcIncludeFica = resolvedInputs.includeFica ?? false;
   const {
     currentAge, retirementAge, projectionEndAge,
-    currentGrossIncome, incomeGrowthRate, effectiveTaxRate,
+    currentGrossIncome, incomeGrowthRate,
     currentCash, currentInvestments, current401k, currentRoth401k,
     currentRothIRA, homeValue, homeLoan, mortgageRate,
     mortgageTotalYears, mortgageElapsedMonths, extraMortgageMonthly,
@@ -1186,7 +1186,13 @@ export function runProjectionWithReturns(
       .reduce((sum, e) => sum + e.amount, 0);
 
     const annualExpenses = monthlyBudget * 12 * inflFactor;
-    const annualNetIncome = effectiveIncome * (1 - effectiveTaxRate);
+    // Dynamic tax for Monte Carlo: compute per-year rate from actual income
+    const mcTaxableWages = !retired ? (baseIncome + mcPartnerBaseIncome) : 0;
+    const mcTaxableAlt = additionalPhaseIncome;
+    const mcTaxableIncome = mcTaxableWages + mcTaxableAlt;
+    const mcTaxResult = calculateTax(mcTaxableIncome, mcFilingStatus, mcStateCode, mcIncludeFica && !retired);
+    const mcYearEffectiveRate = mcTaxResult.totalEffectiveRate;
+    const annualNetIncome = effectiveIncome * (1 - mcYearEffectiveRate);
     const netAnnualNeed = annualExpenses - annualNetIncome - socialSecurityIncome;
 
     // Mortgage
@@ -1238,7 +1244,11 @@ export function runProjectionWithReturns(
       const mcRmdDivisor = MC_IRS_ULT[age] ?? 2.0;
       const mcRmdRequired = age >= MC_RMD_AGE ? (prev401k + prevIRA) / mcRmdDivisor : 0;
       const mcRmdOverflow = Math.max(0, mcRmdRequired - totalNeed);
-      const mcRmdOverflowAfterTax = mcRmdOverflow * (1 - effectiveTaxRate);
+      // Tax the RMD overflow at the retirement-year dynamic rate
+      // Use mcRmdRequired as a proxy for taxable 401k/IRA draws (RMD is the main taxable income in retirement)
+      const mcRetTaxableIncome = mcRmdRequired + socialSecurityIncome * 0.85 + additionalPhaseIncome;
+      const mcRetTaxResult = calculateTax(mcRetTaxableIncome, mcFilingStatus, mcStateCode, false);
+      const mcRmdOverflowAfterTax = mcRmdOverflow * (1 - mcRetTaxResult.totalEffectiveRate);
 
       // Pull RMD from 401k first, then IRA
       let rmdRem = mcRmdRequired;
@@ -1294,7 +1304,7 @@ export function runProjectionWithReturns(
       drawK401: 0, drawRoth401k: 0, drawRothIRA: 0, drawIRA: 0,
       rmdAmount: 0, rothConversionAmount: 0, actualSpend: 0,
       taxableIncome: 0, federalTax: 0, stateTax: 0, totalTax: 0,
-      yearEffectiveTaxRate: effectiveTaxRate, marginalBracket: 0,
+      yearEffectiveTaxRate: mcYearEffectiveRate, marginalBracket: mcTaxResult.federalMarginalRate,
     });
 
     prevHomeValue = currentHomeValue;
