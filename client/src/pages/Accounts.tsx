@@ -239,6 +239,14 @@ export default function Accounts() {
         )}
       </div>
 
+      <SectionCard title="Timeline" description="Set your current age, retirement target, and projection horizon.">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <NumberInput label="Current Age" value={inputs.currentAge} onChange={(v) => updateInput("currentAge", v)} min={18} max={80} suffix="yrs" integer />
+          <NumberInput label="Retirement Age" value={inputs.retirementAge} onChange={(v) => updateInput("retirementAge", v)} min={inputs.currentAge + 1} max={80} suffix="yrs" integer />
+          <NumberInput label="Project to Age" value={inputs.projectionEndAge} onChange={(v) => updateInput("projectionEndAge", v)} min={inputs.retirementAge + 1} max={100} suffix="yrs" integer />
+        </div>
+      </SectionCard>
+
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Accounts ({accounts.length})</h2>
@@ -263,14 +271,6 @@ export default function Accounts() {
           </div>
         )}
       </div>
-
-      <SectionCard title="Timeline" description="Set your current age, retirement target, and projection horizon.">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <NumberInput label="Current Age" value={inputs.currentAge} onChange={(v) => updateInput("currentAge", v)} min={18} max={80} suffix="yrs" integer />
-          <NumberInput label="Retirement Age" value={inputs.retirementAge} onChange={(v) => updateInput("retirementAge", v)} min={inputs.currentAge + 1} max={80} suffix="yrs" integer />
-          <NumberInput label="Project to Age" value={inputs.projectionEndAge} onChange={(v) => updateInput("projectionEndAge", v)} min={inputs.retirementAge + 1} max={100} suffix="yrs" integer />
-        </div>
-      </SectionCard>
 
       <SectionCard title="Home & Mortgage" description="Current home value, outstanding loan, and mortgage details.">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
