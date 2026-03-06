@@ -77,52 +77,36 @@ function AccountRow({
 
   return (
     <div ref={setNodeRef} style={style} className={cn(
-      "bg-white border border-slate-200 rounded-xl px-3 py-2 transition-colors",
+      "bg-white border border-slate-200 rounded-xl px-3 py-2.5 transition-colors space-y-2",
       isDragging ? "shadow-lg border-slate-300" : "hover:border-slate-300"
     )}>
-      {/* Line 1: drag handle + icon + name (+ type dropdown on sm+) */}
+      {/* Line 1: drag handle · type dropdown · name · delete */}
       <div className="flex items-center gap-2">
         <button {...attributes} {...listeners} className="text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing touch-none flex-shrink-0">
           <GripVertical className="w-4 h-4" />
         </button>
-        <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0", meta.bgColor)}>
-          <Icon className={cn("w-3.5 h-3.5", meta.color)} />
-        </div>
+        <select
+          value={account.type}
+          onChange={(e) => onUpdate({ ...account, type: e.target.value as AccountType })}
+          className="h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0 w-[140px]"
+        >
+          {ACCOUNT_TYPES.map((t) => (
+            <option key={t} value={t}>{ACCOUNT_TYPE_META[t].label}</option>
+          ))}
+        </select>
         <Input
           value={account.name}
           onChange={(e) => onUpdate({ ...account, name: e.target.value })}
           className="h-8 text-sm font-medium border border-slate-200 bg-white px-2 focus-visible:ring-1 focus-visible:ring-slate-300 rounded-lg flex-1 min-w-0"
           placeholder="Account name"
         />
-        {/* Type dropdown — hidden on mobile, shown on sm+ */}
-        <select
-          value={account.type}
-          onChange={(e) => onUpdate({ ...account, type: e.target.value as AccountType })}
-          className="hidden sm:block h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0"
-        >
-          {ACCOUNT_TYPES.map((t) => (
-            <option key={t} value={t}>{ACCOUNT_TYPE_META[t].label}</option>
-          ))}
-        </select>
-        {/* Delete — always visible */}
-        <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0 sm:hidden">
+        <button onClick={onDelete} className="text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Line 2 (mobile): type + balance + contribution + growth + delete */}
-      {/* On sm+: shown as extra columns in a flex row */}
-      <div className="mt-2 flex items-center gap-2 sm:mt-1">
-        {/* Type dropdown — mobile only */}
-        <select
-          value={account.type}
-          onChange={(e) => onUpdate({ ...account, type: e.target.value as AccountType })}
-          className="sm:hidden h-8 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300 flex-shrink-0 max-w-[130px]"
-        >
-          {ACCOUNT_TYPES.map((t) => (
-            <option key={t} value={t}>{ACCOUNT_TYPE_META[t].label}</option>
-          ))}
-        </select>
+      {/* Line 2: balance · contribution · growth rate */}
+      <div className="flex items-center gap-2 pl-6">
         {/* Balance */}
         <div className="relative flex-1 min-w-0">
           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">$</span>
@@ -191,10 +175,6 @@ function AccountRow({
             {hasOverride ? "custom" : "+rate"}
           </button>
         </div>
-        {/* Delete — desktop only (mobile delete is in line 1) */}
-        <button onClick={onDelete} className="hidden sm:block text-slate-300 hover:text-red-400 transition-colors flex-shrink-0">
-          <Trash2 className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );
