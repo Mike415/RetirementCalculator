@@ -110,7 +110,7 @@ function AccountRow({
             type="number"
             value={account.annualContribution ?? ""}
             onChange={(e) => onUpdate({ ...account, annualContribution: parseFloat(e.target.value) || 0 })}
-            className="h-8 text-sm pl-8 pr-2 w-full"
+            className="h-8 text-sm pl-10 pr-2 w-full"
             min={0} step={500} placeholder="Contrib."
           />
         </div>
