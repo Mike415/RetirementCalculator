@@ -555,20 +555,26 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         effectiveNeed = effectiveNeed * (1 - ws.guardrailCut);
       }
     }
-    // RMD: must withdraw at least rmdRequired from tax-deferred accounts.
-    // When RMD exceeds the spending need, the forced distribution is treated as
-    // additional spending (taxes + living expenses absorb it) — it is NOT recycled
-    // back into taxable investments, which would artificially preserve the portfolio.
-    // The effective spend is raised to cover the full RMD so the withdrawal loop
-    // pulls the right amount from the tax-deferred accounts.
+    // ── RMD-aware withdrawal strategy ──
+    //
+    // Correct flow:
+    //  1. Pull rmdRequired from tax-deferred accounts (401k + IRA) first.
+    //  2. RMD covers expenses up to effectiveNeed.
+    //  3. If rmdRequired > effectiveNeed: the surplus (rmdOverflow) is ordinary income,
+    //     taxed at effectiveTaxRate, and the after-tax remainder is deposited into
+    //     taxable investments (not lost).
+    //  4. If rmdRequired < effectiveNeed: the shortfall is drawn from remaining accounts
+    //     in the configured withdrawal order.
+    //
     const totalNeedWithRMD = Math.max(effectiveNeed, rmdRequired);
-    // rmdOverflow: the portion of the RMD that exceeds the normal spending need.
-    // This is consumed (spent / taxed away) rather than reinvested.
-    const rmdOverflow = 0; // no longer reinvested — RMD excess is spent, not saved
-    const actualSpend = retired ? totalNeedWithRMD : 0;
+    // Portion of RMD that exceeds spending need — will be taxed and reinvested
+    const rmdOverflow = retired ? Math.max(0, rmdRequired - effectiveNeed) : 0;
+    // After-tax amount of the RMD overflow that flows into taxable investments
+    const rmdOverflowAfterTax = rmdOverflow * (1 - effectiveTaxRate);
+    const actualSpend = retired ? effectiveNeed : 0; // actual spending (not counting the reinvested overflow)
 
     // ── Ordered withdrawal: draw from accounts in configured priority ──
-    // Each account grows at investmentGrowthRate first, then we subtract the draw.
+    // Step 1: Pull the full RMD from tax-deferred accounts first (401k, then IRA)
     const accountBalances: Record<WithdrawalAccount, number> = {
       cash: prevCash,
       investments: prevInvestments,
@@ -580,19 +586,36 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const drawAmounts: Record<WithdrawalAccount, number> = {
       cash: 0, investments: 0, k401: 0, roth401k: 0, rothIRA: 0, ira: 0,
     };
-    let remaining = retired ? totalNeedWithRMD : 0;
-    if (retired && remaining > 0) {
-      for (const acct of ws.order) {
-        if (remaining <= 0) break;
-        const bal = accountBalances[acct];
-        if (bal <= 0) continue;
-        const draw = Math.min(bal, remaining);
-        drawAmounts[acct] = draw;
-        remaining -= draw;
+
+    if (retired) {
+      if (rmdRequired > 0) {
+        // Pull RMD from 401k first, then IRA
+        let rmdRemaining = rmdRequired;
+        const rmdFrom401k = Math.min(prev401k, rmdRemaining);
+        drawAmounts.k401 += rmdFrom401k;
+        rmdRemaining -= rmdFrom401k;
+        if (rmdRemaining > 0) {
+          const rmdFromIRA = Math.min(prevIRA, rmdRemaining);
+          drawAmounts.ira += rmdFromIRA;
+          rmdRemaining -= rmdFromIRA;
+        }
       }
-      // If still remaining (all accounts exhausted), do NOT add phantom draws.
-      // The net worth will go negative naturally; inflating draw amounts causes
-      // the Annual Withdrawals by Source chart to grow exponentially.
+
+      // Step 2: After RMD, how much more spending do we need to fund?
+      // RMD already covers up to rmdRequired of expenses; shortfall = effectiveNeed - rmdRequired
+      let remaining = Math.max(0, effectiveNeed - rmdRequired);
+      if (remaining > 0) {
+        for (const acct of ws.order) {
+          if (remaining <= 0) break;
+          // Skip accounts already drawn by RMD (k401 and ira may be partially drawn)
+          const available = accountBalances[acct] - drawAmounts[acct];
+          if (available <= 0) continue;
+          const draw = Math.min(available, remaining);
+          drawAmounts[acct] += draw;
+          remaining -= draw;
+        }
+      }
+      // If still remaining (all accounts exhausted), net worth goes negative naturally.
     }
 
     // Legacy draw flags (kept for backward compat with Projections Table)
@@ -672,8 +695,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
         oneTimeToInvestments;
     } else {
-      // RMD excess is spent (not reinvested), so no rmdOverflow added here
-      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + oneTimeToInvestments;
+      // RMD overflow (excess over spending need) is taxed at effectiveTaxRate;
+      // the after-tax remainder is deposited into taxable investments.
+      investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + rmdOverflowAfterTax + oneTimeToInvestments;
     }
 
     // ── 401K ──
@@ -1061,26 +1085,59 @@ export function runProjectionWithReturns(
       rothIRA = prevRothIRA * (1 + growthRate) + rothIRAContribution * nextInflFactor;
       ira = prevIRA * (1 + growthRate) + iraContribution * nextInflFactor;
     } else {
-      const totalNeed = netAnnualNeed + annualMortgage + annualPropertyCosts;
-      if (prevInvestments > 0) {
+      const totalNeed = Math.max(0, netAnnualNeed) + annualMortgage + annualPropertyCosts;
+
+      // RMD logic (mirrors main projection engine)
+      const MC_RMD_AGE = 73;
+      const MC_IRS_ULT: Record<number, number> = {
+        72: 27.4, 73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0,
+        79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5, 83: 17.7, 84: 16.8, 85: 16.0,
+        86: 15.2, 87: 14.4, 88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8,
+        93: 10.1, 94: 9.5,  95: 8.9,  96: 8.4,  97: 7.8,  98: 7.3,  99: 6.8,
+        100: 6.4, 101: 6.0, 102: 5.6, 103: 5.2, 104: 4.9, 105: 4.6, 106: 4.3,
+        107: 4.1, 108: 3.9, 109: 3.7, 110: 3.5, 111: 3.4, 112: 3.3, 113: 3.1,
+        114: 3.0, 115: 2.9, 116: 2.8, 117: 2.7, 118: 2.5, 119: 2.3, 120: 2.0,
+      };
+      const mcRmdDivisor = MC_IRS_ULT[age] ?? 2.0;
+      const mcRmdRequired = age >= MC_RMD_AGE ? (prev401k + prevIRA) / mcRmdDivisor : 0;
+      const mcRmdOverflow = Math.max(0, mcRmdRequired - totalNeed);
+      const mcRmdOverflowAfterTax = mcRmdOverflow * (1 - effectiveTaxRate);
+
+      // Pull RMD from 401k first, then IRA
+      let rmdRem = mcRmdRequired;
+      const rmdFrom401k = Math.min(prev401k, rmdRem); rmdRem -= rmdFrom401k;
+      const rmdFromIRA = Math.min(prevIRA, rmdRem);
+
+      // Remaining spend after RMD covers expenses
+      const needAfterRMD = Math.max(0, totalNeed - mcRmdRequired);
+
+      // Grow all accounts, subtract draws
+      k401 = prev401k * (1 + growthRate) - rmdFrom401k;
+      ira = prevIRA * (1 + growthRate) - rmdFromIRA;
+      roth401k = prevRoth401k * (1 + growthRate);
+      rothIRA = prevRothIRA * (1 + growthRate);
+
+      // Cover remaining need from investments, then roth accounts
+      let rem = needAfterRMD;
+      if (rem > 0 && investments > 0) {
+        const draw = Math.min(investments, rem); rem -= draw;
+        investments = prevInvestments * (1 + growthRate) - draw + mcRmdOverflowAfterTax + oneTimeToInvestments;
         drawFromInvestments = true;
-        investments = prevInvestments * (1 + growthRate) - totalNeed + oneTimeToInvestments;
-      } else if (prev401k > 0) {
-        drawFrom401k = true;
-        k401 = prev401k * (1 + growthRate) - totalNeed;
-      } else if (prevRoth401k > 0) {
-        drawFromRoth401k = true;
-        roth401k = prevRoth401k * (1 + growthRate) - totalNeed;
-      } else if (prevRothIRA > 0) {
-        drawFromRothIRA = true;
-        rothIRA = prevRothIRA * (1 + growthRate) - totalNeed;
       } else {
-        investments = prevInvestments * (1 + growthRate) - totalNeed + oneTimeToInvestments;
+        investments = prevInvestments * (1 + growthRate) + mcRmdOverflowAfterTax + oneTimeToInvestments;
       }
-      k401 = k401 !== prev401k ? k401 : prev401k * (1 + growthRate);
-      roth401k = roth401k !== prevRoth401k ? roth401k : prevRoth401k * (1 + growthRate);
-      rothIRA = rothIRA !== prevRothIRA ? rothIRA : prevRothIRA * (1 + growthRate);
-      ira = ira !== prevIRA ? ira : prevIRA * (1 + growthRate);
+      if (rem > 0 && roth401k > 0) {
+        const draw = Math.min(roth401k, rem); rem -= draw;
+        roth401k -= draw; drawFromRoth401k = true;
+      }
+      if (rem > 0 && rothIRA > 0) {
+        const draw = Math.min(rothIRA, rem); rem -= draw;
+        rothIRA -= draw; drawFromRothIRA = true;
+      }
+      if (rem > 0) {
+        // All accounts exhausted — let investments go negative
+        investments -= rem;
+      }
     }
 
     const netWorth = cash + investments + k401 + roth401k + rothIRA + ira + currentHomeValue - currentHomeLoan;
