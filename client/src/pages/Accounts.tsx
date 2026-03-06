@@ -13,7 +13,7 @@ import { CurrencyInput, NumberInput, SectionCard } from "@/components/InputField
 import { cn } from "@/lib/utils";
 import {
   Banknote, TrendingUp, Building2, Leaf, Shield, BookOpen, HelpCircle,
-  Plus, Trash2, GripVertical
+  Plus, Trash2, GripVertical, Users
 } from "lucide-react";
 import {
   DndContext,
@@ -260,10 +260,48 @@ export default function Accounts() {
       </div>
 
       <SectionCard title="Timeline" description="Set your current age, retirement target, and projection horizon.">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <NumberInput label="Current Age" value={inputs.currentAge} onChange={(v) => updateInput("currentAge", v)} min={18} max={80} suffix="yrs" integer />
-          <NumberInput label="Retirement Age" value={inputs.retirementAge} onChange={(v) => updateInput("retirementAge", v)} min={inputs.currentAge + 1} max={80} suffix="yrs" integer />
-          <NumberInput label="Project to Age" value={inputs.projectionEndAge} onChange={(v) => updateInput("projectionEndAge", v)} min={inputs.retirementAge + 1} max={100} suffix="yrs" integer />
+        {/* Primary person */}
+        <div className="mb-2">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">You</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <NumberInput label="Current Age" value={inputs.currentAge} onChange={(v) => updateInput("currentAge", v)} min={18} max={80} suffix="yrs" integer />
+            <NumberInput label="Retirement Age" value={inputs.retirementAge} onChange={(v) => updateInput("retirementAge", v)} min={inputs.currentAge + 1} max={80} suffix="yrs" integer />
+            <NumberInput label="Project to Age" value={inputs.projectionEndAge} onChange={(v) => updateInput("projectionEndAge", v)} min={inputs.retirementAge + 1} max={100} suffix="yrs" integer />
+          </div>
+        </div>
+
+        {/* Partner toggle */}
+        <div className="border-t border-slate-100 pt-4 mt-2">
+          <button
+            onClick={() => updateInput("partnerEnabled", !inputs.partnerEnabled)}
+            className={cn(
+              "flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-sm font-semibold transition-all",
+              inputs.partnerEnabled
+                ? "bg-[#1B4332] border-[#1B4332] text-white"
+                : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
+            )}
+          >
+            <Users className="w-4 h-4" />
+            {inputs.partnerEnabled ? "Partner / Spouse Enabled" : "Add Partner / Spouse"}
+          </button>
+
+          {inputs.partnerEnabled && (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Partner</p>
+                <Input
+                  value={inputs.partnerName}
+                  onChange={(e) => updateInput("partnerName", e.target.value)}
+                  placeholder="Partner name"
+                  className="h-7 text-sm max-w-[160px] border-slate-200"
+                />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <NumberInput label="Partner Age" value={inputs.partnerCurrentAge} onChange={(v) => updateInput("partnerCurrentAge", v)} min={18} max={80} suffix="yrs" integer />
+                <NumberInput label="Retirement Age" value={inputs.partnerRetirementAge} onChange={(v) => updateInput("partnerRetirementAge", v)} min={inputs.partnerCurrentAge + 1} max={80} suffix="yrs" integer />
+              </div>
+            </div>
+          )}
         </div>
       </SectionCard>
 

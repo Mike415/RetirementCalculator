@@ -189,6 +189,17 @@ export interface RetirementInputs {
 
   // Additional properties (vacation homes, rental properties, etc.)
   additionalProperties: AdditionalProperty[];
+
+  // Partner / Spouse
+  partnerEnabled: boolean;
+  partnerName: string;                  // e.g. "Alex"
+  partnerCurrentAge: number;
+  partnerRetirementAge: number;
+  partnerGrossIncome: number;           // current gross income
+  partnerIncomeGrowthRate: number;      // annual growth rate
+  partnerSocialSecurityEnabled: boolean;
+  partnerSocialSecurityStartAge: number;
+  partnerSocialSecurityMonthly: number; // monthly benefit in today's dollars
 }
 
 export interface ProjectionRow {
@@ -321,6 +332,17 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
   const startYear = new Date().getFullYear();
   const rows: ProjectionRow[] = [];
 
+  // ── Partner / Spouse setup ──
+  const partnerEnabled = resolvedInputs.partnerEnabled ?? false;
+  const partnerCurrentAge = resolvedInputs.partnerCurrentAge ?? 33;
+  const partnerRetirementAge = resolvedInputs.partnerRetirementAge ?? 63;
+  const partnerGrossIncome = resolvedInputs.partnerGrossIncome ?? 0;
+  const partnerIncomeGrowthRate = resolvedInputs.partnerIncomeGrowthRate ?? 0.03;
+  const partnerSSEnabled = resolvedInputs.partnerSocialSecurityEnabled ?? false;
+  const partnerSSStartAge = resolvedInputs.partnerSocialSecurityStartAge ?? 67;
+  const partnerSSMonthly = resolvedInputs.partnerSocialSecurityMonthly ?? 0;
+  let prevPartnerIncome = partnerGrossIncome;
+
   // Build per-account growth rate map (for accounts with overrides)
   // Key = WithdrawalAccount bucket, value = weighted average override rate
   // Simple approach: if any account in a bucket has an override, use the first one found
@@ -384,8 +406,15 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     }
     // Base income: grows from currentGrossIncome each year pre-retirement, 0 post-retirement
     const baseIncome = !retired ? prevIncome : 0;
-    // Total effective income = base + all active additive phases
-    const effectiveIncome = baseIncome + additionalPhaseIncome;
+
+    // ── Partner income ──
+    // Partner has their own retirement age (may differ from primary person's)
+    const partnerAge = partnerEnabled ? partnerCurrentAge + i : 0;
+    const partnerRetired = !partnerEnabled || partnerAge >= partnerRetirementAge;
+    const partnerBaseIncome = (partnerEnabled && !partnerRetired) ? prevPartnerIncome : 0;
+
+    // Total effective income = primary base + partner base + all active additive phases
+    const effectiveIncome = baseIncome + partnerBaseIncome + additionalPhaseIncome;
     // Budget period selection — use current age so the period switches exactly
     // at the configured startAge (e.g. startAge=38 activates when age=38).
     const budgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
@@ -396,15 +425,24 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const inflFactor = Math.pow(1 + inflationRate, yearsFromStart);
     const nextInflFactor = Math.pow(1 + inflationRate, yearsFromStart + 1);
 
-    // ── Social Security ──
-    // Benefit is in today's dollars; inflate to the year it starts, then grow with inflation
+    // ── Social Security (primary) ──
     const ssActive = socialSecurityEnabled && age >= socialSecurityStartAge;
     const ssYearsFromStart = Math.max(0, socialSecurityStartAge - currentAge);
     const ssInflFactor = Math.pow(1 + inflationRate, ssYearsFromStart);
-    // Annual SS income (inflation-adjusted to current year from start-of-SS dollars)
-    const socialSecurityIncome = ssActive
+    const primarySSIncome = ssActive
       ? socialSecurityMonthly * 12 * ssInflFactor * Math.pow(1 + inflationRate, age - socialSecurityStartAge)
       : 0;
+
+    // ── Social Security (partner) ──
+    // Partner SS is keyed to their own age, not the primary person's age
+    const partnerSSActive = partnerEnabled && partnerSSEnabled && partnerAge >= partnerSSStartAge;
+    const partnerSSYearsFromStart = Math.max(0, partnerSSStartAge - partnerCurrentAge);
+    const partnerSSInflFactor = Math.pow(1 + inflationRate, partnerSSYearsFromStart);
+    const partnerSSIncome = partnerSSActive
+      ? partnerSSMonthly * 12 * partnerSSInflFactor * Math.pow(1 + inflationRate, partnerAge - partnerSSStartAge)
+      : 0;
+
+    const socialSecurityIncome = primarySSIncome + partnerSSIncome;
 
     // ── One-Time Events ──
     // Sum all events that fire at this exact age
@@ -695,6 +733,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     prevIRA = ira;
     // Update base income (always grows pre-retirement, 0 post-retirement)
     prevIncome = !retired ? prevIncome * (1 + incomeGrowthRate) : 0;
+    // Update partner income (grows until partner retires)
+    prevPartnerIncome = (partnerEnabled && !partnerRetired) ? prevPartnerIncome * (1 + partnerIncomeGrowthRate) : 0;
     // Update each phase's income level (compound independently within the phase)
     for (const phase of sortedPhases) {
       const inRange =
@@ -820,6 +860,17 @@ export const DEFAULT_INPUTS: RetirementInputs = {
 
   // No additional properties by default
   additionalProperties: [],
+
+  // Partner / Spouse — disabled by default
+  partnerEnabled: false,
+  partnerName: "Partner",
+  partnerCurrentAge: 33,
+  partnerRetirementAge: 63,
+  partnerGrossIncome: 100000,
+  partnerIncomeGrowthRate: 0.03,
+  partnerSocialSecurityEnabled: true,
+  partnerSocialSecurityStartAge: 67,
+  partnerSocialSecurityMonthly: 1800,
 };
 
 // ─── Monte Carlo Simulation ───────────────────────────────────────────────────
@@ -868,6 +919,17 @@ export function runProjectionWithReturns(
   const phaseIncomeLevels: Record<string, number> = {};
   const totalMortgageMonths = mortgageTotalYears * 12;
 
+  // Partner setup (Monte Carlo)
+  const mcPartnerEnabled = resolvedInputs.partnerEnabled ?? false;
+  const mcPartnerCurrentAge = resolvedInputs.partnerCurrentAge ?? 33;
+  const mcPartnerRetirementAge = resolvedInputs.partnerRetirementAge ?? 63;
+  const mcPartnerGrossIncome = resolvedInputs.partnerGrossIncome ?? 0;
+  const mcPartnerIncomeGrowthRate = resolvedInputs.partnerIncomeGrowthRate ?? 0.03;
+  const mcPartnerSSEnabled = resolvedInputs.partnerSocialSecurityEnabled ?? false;
+  const mcPartnerSSStartAge = resolvedInputs.partnerSocialSecurityStartAge ?? 67;
+  const mcPartnerSSMonthly = resolvedInputs.partnerSocialSecurityMonthly ?? 0;
+  let prevPartnerIncomeMC = mcPartnerGrossIncome;
+
   let prevHomeValue = homeValue;
   let prevHomeLoan = homeLoan;
   let prevCash = currentCash;
@@ -891,7 +953,11 @@ export function runProjectionWithReturns(
       if (inRange) additionalPhaseIncome += phaseIncomeLevels[phase.id] ?? phase.annualIncome;
     }
     const baseIncome = !retired ? prevIncome : 0;
-    const effectiveIncome = baseIncome + additionalPhaseIncome;
+    // Partner income (Monte Carlo)
+    const mcPartnerAge = mcPartnerEnabled ? mcPartnerCurrentAge + i : 0;
+    const mcPartnerRetired = !mcPartnerEnabled || mcPartnerAge >= mcPartnerRetirementAge;
+    const mcPartnerBaseIncome = (mcPartnerEnabled && !mcPartnerRetired) ? prevPartnerIncomeMC : 0;
+    const effectiveIncome = baseIncome + mcPartnerBaseIncome + additionalPhaseIncome;
     const budgetPeriodIdx = getBudgetPeriodIndex(age, budgetPeriods);
     const activePeriod = budgetPeriods[budgetPeriodIdx];
     const monthlyBudget = getBudgetMonthlyTotal(activePeriod, budgetPeriodIdx);
@@ -902,9 +968,16 @@ export function runProjectionWithReturns(
     const ssActive = socialSecurityEnabled && age >= socialSecurityStartAge;
     const ssYearsFromStart = Math.max(0, socialSecurityStartAge - currentAge);
     const ssInflFactor = Math.pow(1 + inflationRate, ssYearsFromStart);
-    const socialSecurityIncome = ssActive
+    const primarySSIncomeMC = ssActive
       ? socialSecurityMonthly * 12 * ssInflFactor * Math.pow(1 + inflationRate, age - socialSecurityStartAge)
       : 0;
+    const mcPartnerSSActive = mcPartnerEnabled && mcPartnerSSEnabled && mcPartnerAge >= mcPartnerSSStartAge;
+    const mcPartnerSSYearsFromStart = Math.max(0, mcPartnerSSStartAge - mcPartnerCurrentAge);
+    const mcPartnerSSInflFactor = Math.pow(1 + inflationRate, mcPartnerSSYearsFromStart);
+    const mcPartnerSSIncome = mcPartnerSSActive
+      ? mcPartnerSSMonthly * 12 * mcPartnerSSInflFactor * Math.pow(1 + inflationRate, mcPartnerAge - mcPartnerSSStartAge)
+      : 0;
+    const socialSecurityIncome = primarySSIncomeMC + mcPartnerSSIncome;
 
     const oneTimeEventAmount = (oneTimeEvents ?? [])
       .filter((e) => e.age === age)
@@ -999,6 +1072,7 @@ export function runProjectionWithReturns(
     prevRothIRA = rothIRA;
     prevIRA = ira;
     prevIncome = !retired ? prevIncome * (1 + incomeGrowthRate) : 0;
+    prevPartnerIncomeMC = (mcPartnerEnabled && !mcPartnerRetired) ? prevPartnerIncomeMC * (1 + mcPartnerIncomeGrowthRate) : 0;
     for (const phase of sortedPhases) {
       const inRange = age >= phase.startAge && (phase.endAge === undefined || phase.endAge === null || age <= phase.endAge);
       if (inRange) {

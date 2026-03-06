@@ -53,6 +53,16 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (base.iraContribution === undefined) base.iraContribution = DEFAULT_INPUTS.iraContribution;
   // Additional properties (multi-home support)
   if (!Array.isArray(base.additionalProperties)) base.additionalProperties = DEFAULT_INPUTS.additionalProperties;
+  // Partner / Spouse fields
+  if (base.partnerEnabled === undefined) base.partnerEnabled = DEFAULT_INPUTS.partnerEnabled;
+  if (base.partnerName === undefined) base.partnerName = DEFAULT_INPUTS.partnerName;
+  if (base.partnerCurrentAge === undefined) base.partnerCurrentAge = DEFAULT_INPUTS.partnerCurrentAge;
+  if (base.partnerRetirementAge === undefined) base.partnerRetirementAge = DEFAULT_INPUTS.partnerRetirementAge;
+  if (base.partnerGrossIncome === undefined) base.partnerGrossIncome = DEFAULT_INPUTS.partnerGrossIncome;
+  if (base.partnerIncomeGrowthRate === undefined) base.partnerIncomeGrowthRate = DEFAULT_INPUTS.partnerIncomeGrowthRate;
+  if (base.partnerSocialSecurityEnabled === undefined) base.partnerSocialSecurityEnabled = DEFAULT_INPUTS.partnerSocialSecurityEnabled;
+  if (base.partnerSocialSecurityStartAge === undefined) base.partnerSocialSecurityStartAge = DEFAULT_INPUTS.partnerSocialSecurityStartAge;
+  if (base.partnerSocialSecurityMonthly === undefined) base.partnerSocialSecurityMonthly = DEFAULT_INPUTS.partnerSocialSecurityMonthly;
   // Migrate old saves without accounts[] — build accounts from legacy fixed fields
   if (!Array.isArray(base.accounts) || base.accounts.length === 0) {
     const accts: RetirementInputs['accounts'] = [];

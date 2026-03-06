@@ -17,13 +17,16 @@ import {
   TaxCalculationResult,
   calculateTax,
 } from "@/lib/taxCalc";
-import { Calculator, ChevronDown, ChevronUp } from "lucide-react";
+import { Calculator, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export default function Income() {
   const { inputs, updateInput } = usePlanner();
 
   const netIncome = inputs.currentGrossIncome * (1 - inputs.effectiveTaxRate);
+  const partnerNetIncome = (inputs.partnerGrossIncome ?? 0) * (1 - inputs.effectiveTaxRate);
+  const householdGross = inputs.currentGrossIncome + (inputs.partnerEnabled ? (inputs.partnerGrossIncome ?? 0) : 0);
+  const householdNet = netIncome + (inputs.partnerEnabled ? partnerNetIncome : 0);
 
   // ── Tax Calculator state ──────────────────────────────────────────────────
   const [calcOpen, setCalcOpen] = useState(false);
@@ -53,9 +56,11 @@ export default function Income() {
       <div className="bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] rounded-xl p-5 text-white">
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <p className="text-[10px] text-white/50 uppercase tracking-wide">Gross Income</p>
+            <p className="text-[10px] text-white/50 uppercase tracking-wide">
+              {inputs.partnerEnabled ? "Household Gross" : "Gross Income"}
+            </p>
             <p className="text-xl font-bold tabular-nums mt-0.5">
-              {formatCurrency(inputs.currentGrossIncome, true)}
+              {formatCurrency(householdGross, true)}
             </p>
           </div>
           <div>
@@ -65,25 +70,43 @@ export default function Income() {
             </p>
           </div>
           <div>
-            <p className="text-[10px] text-white/50 uppercase tracking-wide">Net Take-Home</p>
+            <p className="text-[10px] text-white/50 uppercase tracking-wide">
+              {inputs.partnerEnabled ? "Household Net" : "Net Take-Home"}
+            </p>
             <p className="text-xl font-bold tabular-nums mt-0.5">
-              {formatCurrency(netIncome, true)}
+              {formatCurrency(householdNet, true)}
             </p>
           </div>
         </div>
+        {inputs.partnerEnabled && (
+          <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] text-white/50 uppercase tracking-wide">Your Income</p>
+              <p className="text-sm font-semibold tabular-nums mt-0.5">{formatCurrency(inputs.currentGrossIncome, true)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-white/50 uppercase tracking-wide">{inputs.partnerName || "Partner"} Income</p>
+              <p className="text-sm font-semibold tabular-nums mt-0.5">{formatCurrency(inputs.partnerGrossIncome ?? 0, true)}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Income inputs */}
       <SectionCard
         title="Income"
-        description="Your current gross household income and expected annual growth rate."
+        description="Your current gross income and expected annual growth rate."
       >
+        {/* Primary person */}
+        {inputs.partnerEnabled && (
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">You</p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <CurrencyInput
             label="Current Gross Income / Year"
             value={inputs.currentGrossIncome}
             onChange={(v) => updateInput("currentGrossIncome", v)}
-            hint="Total household gross income before taxes"
+            hint="Your gross income before taxes"
           />
           <PercentInput
             label="Income Growth Rate / Year"
@@ -93,6 +116,36 @@ export default function Income() {
             max={0.5}
           />
         </div>
+
+        {/* Partner income — only shown when partner is enabled */}
+        {inputs.partnerEnabled && (
+          <div className="mt-5 pt-5 border-t border-slate-100">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-3.5 h-3.5 text-[#2D6A4F]" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                {inputs.partnerName || "Partner"}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CurrencyInput
+                label="Gross Income / Year"
+                value={inputs.partnerGrossIncome ?? 0}
+                onChange={(v) => updateInput("partnerGrossIncome", v)}
+                hint={`${inputs.partnerName || "Partner"}'s gross income before taxes`}
+              />
+              <PercentInput
+                label="Income Growth Rate / Year"
+                value={inputs.partnerIncomeGrowthRate ?? 0.03}
+                onChange={(v) => updateInput("partnerIncomeGrowthRate", v)}
+                hint="Expected annual raise / income growth"
+                max={0.5}
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-3">
+              {inputs.partnerName || "Partner"} retires at age {inputs.partnerRetirementAge} (set in Accounts &amp; Timeline). Their income is added to household income until that age.
+            </p>
+          </div>
+        )}
       </SectionCard>
 
       {/* Tax rate input + calculator */}

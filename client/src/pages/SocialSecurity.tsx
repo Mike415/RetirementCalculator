@@ -7,7 +7,7 @@ import { CurrencyInput, NumberInput, SectionCard } from "@/components/InputField
 import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, ShieldOff } from "lucide-react";
+import { ShieldCheck, ShieldOff, Users } from "lucide-react";
 
 const SS_AGES = [
   { age: 62, label: "Early (62)", penalty: "−30% of full benefit", color: "text-red-600" },
@@ -201,6 +201,86 @@ export default function SocialSecurity() {
             </div>
           </SectionCard>
         </>
+      )}
+
+      {/* Partner SS — only shown when partner is enabled */}
+      {inputs.partnerEnabled && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-[#2D6A4F]" />
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">
+                  {inputs.partnerName || "Partner"} — Social Security
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {inputs.partnerSocialSecurityEnabled
+                    ? `${inputs.partnerName || "Partner"}'s SS benefit will be added to household income.`
+                    : `${inputs.partnerName || "Partner"}'s SS is not included in projections.`}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => updateInput("partnerSocialSecurityEnabled", !inputs.partnerSocialSecurityEnabled)}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none",
+                inputs.partnerSocialSecurityEnabled ? "bg-[#1B4332]" : "bg-slate-200"
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200",
+                  inputs.partnerSocialSecurityEnabled ? "translate-x-6" : "translate-x-1"
+                )}
+              />
+            </button>
+          </div>
+
+          {inputs.partnerSocialSecurityEnabled && (
+            <div className="pt-3 border-t border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <NumberInput
+                  label="Start Age"
+                  value={inputs.partnerSocialSecurityStartAge}
+                  onChange={(v) => updateInput("partnerSocialSecurityStartAge", v)}
+                  min={62}
+                  max={70}
+                  suffix="yrs"
+                  hint="62 (early), 67 (full), or 70 (delayed)"
+                />
+                <CurrencyInput
+                  label="Monthly Benefit (Today's Dollars)"
+                  value={inputs.partnerSocialSecurityMonthly}
+                  onChange={(v) => updateInput("partnerSocialSecurityMonthly", v)}
+                  hint="Check ssa.gov/myaccount for estimate"
+                />
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                {SS_AGES.map((opt) => (
+                  <button
+                    key={opt.age}
+                    onClick={() => updateInput("partnerSocialSecurityStartAge", opt.age)}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-all",
+                      inputs.partnerSocialSecurityStartAge === opt.age
+                        ? "bg-[#1B4332] border-[#1B4332] text-white"
+                        : "bg-slate-50 border-slate-200 hover:border-slate-300"
+                    )}
+                  >
+                    <p className={cn(
+                      "text-xs font-bold",
+                      inputs.partnerSocialSecurityStartAge === opt.age ? "text-white" : "text-slate-700"
+                    )}>{opt.label}</p>
+                    <p className={cn(
+                      "text-[10px] mt-1",
+                      inputs.partnerSocialSecurityStartAge === opt.age ? "text-white/70" : opt.color
+                    )}>{opt.penalty}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {!inputs.socialSecurityEnabled && (
