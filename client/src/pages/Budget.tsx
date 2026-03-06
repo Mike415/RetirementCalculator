@@ -10,7 +10,7 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { getBudgetMonthlyTotal } from "@/lib/projection";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 const PERIOD_COLORS = [
@@ -191,6 +191,24 @@ export default function Budget() {
     updateInput("budgetPeriods", newPeriods);
   };
 
+  const duplicatePeriod = (idx: number) => {
+    const source = budgetPeriods[idx];
+    const clone = {
+      ...source,
+      name: `${source.name} (Copy)`,
+      startAge: source.startAge + 5,
+      items: source.items.map((item) => ({ ...item, amounts: [...item.amounts, item.amounts[idx] ?? 0] })),
+    };
+    // Also extend every existing period's amounts array by one slot (the new period column)
+    const extended = budgetPeriods.map((p) => ({
+      ...p,
+      items: p.items.map((item) => ({ ...item, amounts: [...item.amounts, item.amounts[idx] ?? 0] })),
+    }));
+    const newPeriods = [...extended, clone];
+    updateInput("budgetPeriods", newPeriods);
+    setActivePeriodIdx(newPeriods.length - 1);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -269,14 +287,24 @@ export default function Budget() {
                 />
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Total</p>
-              <p className="text-xl font-bold text-[#1B4332] tabular-nums">
-                {formatCurrency(monthlyTotal)}
-              </p>
-              <p className="text-xs text-slate-400 tabular-nums">
-                {formatCurrency(yearlyTotal)}/yr
-              </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => duplicatePeriod(activePeriodIdx)}
+                title="Duplicate this period"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Duplicate
+              </button>
+              <div className="text-right">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Total</p>
+                <p className="text-xl font-bold text-[#1B4332] tabular-nums">
+                  {formatCurrency(monthlyTotal)}
+                </p>
+                <p className="text-xs text-slate-400 tabular-nums">
+                  {formatCurrency(yearlyTotal)}/yr
+                </p>
+              </div>
             </div>
           </div>
         </div>

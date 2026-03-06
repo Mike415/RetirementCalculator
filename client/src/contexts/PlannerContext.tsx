@@ -55,6 +55,12 @@ function mergeWithDefaults(saved: Partial<RetirementInputs>): RetirementInputs {
   if (!Array.isArray(base.additionalProperties)) base.additionalProperties = DEFAULT_INPUTS.additionalProperties;
   // DOB fields (optional — undefined is fine for old saves)
   // No default needed; undefined means "not set", age fallback is used instead
+  // Roth Conversion Strategy fields
+  if (base.rothConversionEnabled === undefined) base.rothConversionEnabled = DEFAULT_INPUTS.rothConversionEnabled;
+  if (base.rothConversionStartAge === undefined) base.rothConversionStartAge = DEFAULT_INPUTS.rothConversionStartAge;
+  if (base.rothConversionEndAge === undefined) base.rothConversionEndAge = DEFAULT_INPUTS.rothConversionEndAge;
+  if (base.rothConversionAnnualAmount === undefined) base.rothConversionAnnualAmount = DEFAULT_INPUTS.rothConversionAnnualAmount;
+  if (base.rothConversionSource === undefined) base.rothConversionSource = DEFAULT_INPUTS.rothConversionSource;
   // Partner / Spouse fields
   if (base.partnerEnabled === undefined) base.partnerEnabled = DEFAULT_INPUTS.partnerEnabled;
   if (base.partnerName === undefined) base.partnerName = DEFAULT_INPUTS.partnerName;

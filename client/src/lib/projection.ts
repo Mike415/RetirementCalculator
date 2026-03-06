@@ -191,6 +191,12 @@ export interface RetirementInputs {
   // Additional properties (vacation homes, rental properties, etc.)
   additionalProperties: AdditionalProperty[];
 
+  // Roth Conversion Strategy
+  rothConversionEnabled: boolean;
+  rothConversionStartAge: number;   // age to begin annual conversions
+  rothConversionEndAge: number;     // age to stop (typically just before RMD age 73)
+  rothConversionAnnualAmount: number; // annual amount to convert (today's dollars)
+  rothConversionSource: "k401" | "ira"; // which account to convert from
   // Partner / Spouse
   partnerEnabled: boolean;
   partnerName: string;                  // e.g. "Alex"
@@ -381,6 +387,13 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
 
   // ── Additional properties initial state ──
   const additionalProperties = resolvedInputs.additionalProperties ?? [];
+
+  // Roth conversion strategy
+  const rothConversionEnabled = resolvedInputs.rothConversionEnabled ?? false;
+  const rothConversionStartAge = resolvedInputs.rothConversionStartAge ?? 60;
+  const rothConversionEndAge = resolvedInputs.rothConversionEndAge ?? 72;
+  const rothConversionAnnualAmount = resolvedInputs.rothConversionAnnualAmount ?? 0;
+  const rothConversionSource = resolvedInputs.rothConversionSource ?? "k401";
   const prevAddlHomeValues = additionalProperties.map((p) => p.homeValue);
   const prevAddlHomeLoans = additionalProperties.map((p) => p.homeLoan);
 
@@ -700,14 +713,29 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
       investments = prevInvestments * (1 + investmentGrowthRate) - drawAmounts.investments + rmdOverflowAfterTax + oneTimeToInvestments;
     }
 
+     // ── Roth Conversion (pre-RMD ladder) ──
+    // Moves money from 401k or IRA → Roth IRA each year within the configured age window.
+    // The conversion amount is inflation-adjusted. The source account is debited; Roth IRA is credited.
+    // Tax cost is already reflected in the user's effective tax rate (the converted amount is ordinary income).
+    const conversionActive =
+      rothConversionEnabled &&
+      age >= rothConversionStartAge &&
+      age <= rothConversionEndAge;
+    const conversionAmount = conversionActive
+      ? Math.min(
+          rothConversionAnnualAmount * nextInflFactor,
+          rothConversionSource === "k401" ? prev401k : prevIRA
+        )
+      : 0;
+
     // ── 401K ──
     let k401: number;
     if (!retired) {
-      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor;
+      k401 = prev401k * (1 + investmentGrowthRate) + k401Contribution * nextInflFactor
+           - (conversionActive && rothConversionSource === "k401" ? conversionAmount : 0);
     } else {
       k401 = prev401k * (1 + investmentGrowthRate) - drawAmounts.k401;
     }
-
     // ── Roth 401K ──
     let roth401k: number;
     if (!retired) {
@@ -715,21 +743,21 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     } else {
       roth401k = prevRoth401k * (1 + investmentGrowthRate) - drawAmounts.roth401k;
     }
-
     // ── Roth IRA ──
     let rothIRA: number;
     if (!retired) {
-      rothIRA = prevRothIRA * (1 + investmentGrowthRate) + rothIRAContribution * nextInflFactor;
+      rothIRA = prevRothIRA * (1 + investmentGrowthRate) + rothIRAContribution * nextInflFactor + conversionAmount;
     } else {
-      rothIRA = prevRothIRA * (1 + investmentGrowthRate) - drawAmounts.rothIRA;
+      rothIRA = prevRothIRA * (1 + investmentGrowthRate) - drawAmounts.rothIRA + conversionAmount;
     }
-
     // ── Traditional IRA ──
     let ira: number;
     if (!retired) {
-      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor;
+      ira = prevIRA * (1 + investmentGrowthRate) + iraContribution * nextInflFactor
+          - (conversionActive && rothConversionSource === "ira" ? conversionAmount : 0);
     } else {
-      ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira;
+      ira = prevIRA * (1 + investmentGrowthRate) - drawAmounts.ira
+          - (conversionActive && rothConversionSource === "ira" ? conversionAmount : 0);
     }
 
     // ── Net Worth ──
@@ -914,7 +942,12 @@ export const DEFAULT_INPUTS: RetirementInputs = {
 
   // No additional properties by default
   additionalProperties: [],
-
+  // Roth Conversion Strategy — disabled by default
+  rothConversionEnabled: false,
+  rothConversionStartAge: 60,
+  rothConversionEndAge: 72,
+  rothConversionAnnualAmount: 50000,
+  rothConversionSource: "k401" as const,
   // Partner / Spouse — disabled by default
   partnerEnabled: false,
   partnerName: "Partner",

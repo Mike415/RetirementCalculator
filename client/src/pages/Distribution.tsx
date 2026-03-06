@@ -6,6 +6,7 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WithdrawalAccount, WithdrawalStrategy } from "@/lib/projection";
+
 import {
   GripVertical,
   ArrowUp,
@@ -16,6 +17,7 @@ import {
   Percent,
   DollarSign,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
@@ -506,6 +508,82 @@ export default function Distribution() {
         Withdrawal ordering affects account depletion sequence and tax exposure but does not model detailed tax bracket optimization.
         Consult a tax advisor for Roth conversion strategies and bracket management.
       </p>
+
+      {/* Roth Conversion Strategy */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-4 h-4 text-emerald-600" />
+            <h2 className="font-bold text-slate-800">Roth Conversion Strategy</h2>
+          </div>
+          <Switch
+            checked={inputs.rothConversionEnabled ?? false}
+            onCheckedChange={(v) => updateInput("rothConversionEnabled", v)}
+          />
+        </div>
+        <p className="text-xs text-slate-400 mb-4">
+          Convert traditional 401(k) or IRA funds to Roth IRA each year before age 73 to reduce future RMD exposure.
+          Conversions are taxed as ordinary income in the year converted; the converted amount grows tax-free thereafter.
+        </p>
+        {(inputs.rothConversionEnabled ?? false) && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Annual Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                  <input
+                    type="number"
+                    value={inputs.rothConversionAnnualAmount ?? 50000}
+                    onChange={(e) => updateInput("rothConversionAnnualAmount", Number(e.target.value))}
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] [font-size:16px]"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Start Age</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={inputs.rothConversionStartAge ?? 60}
+                    onChange={(e) => updateInput("rothConversionStartAge", Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] [font-size:16px]"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">yrs</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">End Age</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={inputs.rothConversionEndAge ?? 72}
+                    onChange={(e) => updateInput("rothConversionEndAge", Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] [font-size:16px]"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">yrs</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Convert From</label>
+                <select
+                  value={inputs.rothConversionSource ?? "k401"}
+                  onChange={(e) => updateInput("rothConversionSource", e.target.value as "k401" | "ira")}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332] [font-size:16px]"
+                >
+                  <option value="k401">401(k)</option>
+                  <option value="ira">Traditional IRA</option>
+                </select>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+              <strong>Tax note:</strong> Each year’s conversion is taxed as ordinary income at your effective tax rate.
+              The converted amount is debited from the source account and credited to Roth IRA, where it grows tax-free.
+              Setting the end age to 72 maximizes the conversion window before RMDs begin at 73.
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
