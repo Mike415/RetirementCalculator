@@ -28,15 +28,18 @@ import Distribution from "./pages/Distribution";
 import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import OnboardingModal, { isFirstVisit } from "./components/OnboardingModal";
 import { cn } from "@/lib/utils";
 import { Route, Switch, Redirect, Router } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 
 function PlannerApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => isFirstVisit());
 
   return (
     <div className="flex h-[100dvh] bg-[#FAFAF8] overflow-hidden">
+      {showOnboarding && <OnboardingModal onDismiss={() => setShowOnboarding(false)} />}
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
