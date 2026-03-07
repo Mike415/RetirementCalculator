@@ -1,5 +1,5 @@
 /**
- * Formatting utilities for the Retirement Planner
+ * Formatting utilities for Project Retire
  * Design: "Horizon" — Warm Modernist Financial Planning
  */
 

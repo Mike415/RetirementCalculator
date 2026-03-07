@@ -94,7 +94,7 @@ export default function OnboardingModal({ onDismiss }: Props) {
             </div>
             <div>
               <h1 className="text-xl font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-                Retirement Planner
+                Project Retire
               </h1>
               <p className="text-white/70 text-xs mt-0.5">Free, private, no account required</p>
             </div>

@@ -1,5 +1,5 @@
 /**
- * Retirement Planner — Main App
+ * Project Retire — Main App
  * Design: "Horizon" — Warm Modernist Financial Planning
  * Forest green sidebar, warm off-white content, Playfair Display headings
  *
@@ -68,7 +68,7 @@ function PlannerApp() {
           >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <h1 className="font-bold text-sm">Retirement Planner</h1>
+          <h1 className="font-bold text-sm">Project Retire</h1>
         </div>
 
         {/* Page content — overscroll-contain prevents the whole-page bounce on iOS when scrolling past the end */}

@@ -1,5 +1,5 @@
 /**
- * Sidebar — Navigation for the Retirement Planner
+ * Sidebar — Navigation for Project Retire
  * Design: "Horizon" — Warm Modernist Financial Planning
  * Forest green sidebar with warm off-white text, Playfair Display headings
  *

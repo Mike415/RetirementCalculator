@@ -1,5 +1,5 @@
 /**
- * InputField — Reusable form input components for the Retirement Planner
+ * InputField — Reusable form input components for Project Retire
  * Design: "Horizon" — Warm Modernist Financial Planning
  *
  * All numeric inputs use a local string state so the user can freely edit

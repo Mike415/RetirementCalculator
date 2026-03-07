@@ -1,5 +1,5 @@
 /**
- * PlannerContext — Global state for the Retirement Planner
+ * PlannerContext — Global state for Project Retire
  * Design: "Horizon" — Warm Modernist Financial Planning
  *
  * Persistence: all inputs are saved to localStorage on every change and
