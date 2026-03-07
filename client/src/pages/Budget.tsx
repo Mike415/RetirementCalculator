@@ -2,8 +2,9 @@
  * Budget Periods — Life-stage budget editor
  * Design: "Horizon" — Warm Modernist Financial Planning
  *
- * All numeric inputs use local string state so the user can freely delete
- * characters without the field snapping back. Values commit on blur.
+ * Mobile-first: on small screens, the active period shows a single-column
+ * card list (expense name + amount). On md+ screens, the full multi-period
+ * grid with horizontal scroll is shown.
  */
 
 import { usePlanner } from "@/contexts/PlannerContext";
@@ -199,7 +200,6 @@ export default function Budget() {
       startAge: source.startAge + 5,
       items: source.items.map((item) => ({ ...item, amounts: [...item.amounts, item.amounts[idx] ?? 0] })),
     };
-    // Also extend every existing period's amounts array by one slot (the new period column)
     const extended = budgetPeriods.map((p) => ({
       ...p,
       items: p.items.map((item) => ({ ...item, amounts: [...item.amounts, item.amounts[idx] ?? 0] })),
@@ -261,134 +261,167 @@ export default function Budget() {
 
       {/* Active period editor */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-        {/* Period header */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="flex-1 max-w-xs">
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                  Period Name
-                </label>
-                <input
-                  type="text"
-                  value={activePeriod.name}
-                  onChange={(e) => updatePeriodName(activePeriodIdx, e.target.value)}
-                  className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
-                />
-              </div>
-              <div className="w-28">
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                  Start Age
-                </label>
-                <AgeInput
-                  value={activePeriod.startAge}
-                  onChange={(age) => updatePeriodStartAge(activePeriodIdx, age)}
-                  className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
-                />
-              </div>
+
+        {/* ── Period header — stacks on mobile ── */}
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          {/* Top row: name + age inputs */}
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                Period Name
+              </label>
+              <input
+                type="text"
+                value={activePeriod.name}
+                onChange={(e) => updatePeriodName(activePeriodIdx, e.target.value)}
+                className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+              />
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => duplicatePeriod(activePeriodIdx)}
-                title="Duplicate this period"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Duplicate
-              </button>
-              <div className="text-right">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Total</p>
-                <p className="text-xl font-bold text-[#1B4332] tabular-nums">
-                  {formatCurrency(monthlyTotal)}
-                </p>
-                <p className="text-xs text-slate-400 tabular-nums">
-                  {formatCurrency(yearlyTotal)}/yr
-                </p>
-              </div>
+            <div className="w-24">
+              <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+                Start Age
+              </label>
+              <AgeInput
+                value={activePeriod.startAge}
+                onChange={(age) => updatePeriodStartAge(activePeriodIdx, age)}
+                className="w-full px-3 py-1.5 text-sm font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B4332]/20 focus:border-[#1B4332]"
+              />
+            </div>
+          </div>
+
+          {/* Bottom row: duplicate + monthly total */}
+          <div className="flex items-center justify-between mt-3">
+            <button
+              onClick={() => duplicatePeriod(activePeriodIdx)}
+              title="Duplicate this period"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              Duplicate
+            </button>
+            <div className="text-right">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Total</p>
+              <p className="text-xl font-bold text-[#1B4332] tabular-nums leading-tight">
+                {formatCurrency(monthlyTotal)}
+              </p>
+              <p className="text-xs text-slate-400 tabular-nums">
+                {formatCurrency(yearlyTotal)}/yr
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Line items — horizontal scroll since this is a wide multi-period grid */}
-        <div className="overflow-x-auto">
-        <div className="divide-y divide-slate-50" style={{ minWidth: `${200 + budgetPeriods.length * 88 + 36}px` }}>
-          {/* Column headers */}
-          <div
-            className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
-            style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
-          >
-            <span className="sticky left-0 bg-slate-50 z-10 pr-2">Expense</span>
-            {budgetPeriods.map((p, i) => (
-              <span key={i} className="text-center truncate px-1">
-                {p.name.split(" ")[0]}
-              </span>
-            ))}
-            <span></span>
-          </div>
-
+        {/* ── Mobile: single-column card list for active period ── */}
+        <div className="md:hidden divide-y divide-slate-50">
           {activePeriod.items.map((item, itemIdx) => (
-            <div
-              key={itemIdx}
-              className="grid items-center px-6 py-2 hover:bg-slate-50/50 transition-colors"
-              style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
-            >
+            <div key={itemIdx} className="px-4 py-3 flex items-center gap-3">
               <input
                 type="text"
                 value={item.label}
                 onChange={(e) => updateItemLabel(itemIdx, e.target.value)}
-                className="text-sm text-slate-700 bg-white border-0 focus:outline-none focus:border focus:border-slate-200 rounded px-1 py-0.5 -mx-1 w-full sticky left-0 z-10"
+                className="flex-1 text-sm text-slate-700 bg-transparent border-0 focus:outline-none focus:bg-white focus:border focus:border-slate-200 rounded px-1 py-0.5 min-w-0"
               />
-              {budgetPeriods.map((_, periodIdx) => (
-                <div key={periodIdx} className="px-1">
-                  <NumericCell
-                    value={item.amounts[periodIdx] ?? 0}
-                    onChange={(v) => updateItemAmount(itemIdx, periodIdx, v)}
-                    className={cn(
-                      "w-full text-xs text-right tabular-nums px-1.5 py-1 rounded border transition-colors focus:outline-none",
-                      periodIdx === activePeriodIdx
-                        ? "bg-[#1B4332]/5 border-[#1B4332]/20 text-slate-800 font-semibold focus:border-[#1B4332]"
-                        : "bg-transparent border-transparent text-slate-400 focus:bg-white focus:border-slate-200"
-                    )}
-                  />
-                </div>
-              ))}
+              <div className="relative flex-shrink-0 w-28">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">$</span>
+                <NumericCell
+                  value={item.amounts[activePeriodIdx] ?? 0}
+                  onChange={(v) => updateItemAmount(itemIdx, activePeriodIdx, v)}
+                  className="w-full pl-5 pr-2 py-1.5 text-sm font-semibold text-right tabular-nums text-slate-800 bg-[#1B4332]/5 border border-[#1B4332]/20 rounded-lg focus:outline-none focus:border-[#1B4332]"
+                />
+              </div>
               <button
                 onClick={() => removeItem(itemIdx)}
-                className="flex items-center justify-center w-7 h-7 rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                className="flex items-center justify-center w-7 h-7 rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
+          {/* Mobile totals row */}
+          <div className="px-4 py-3 flex items-center justify-between bg-slate-50">
+            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Monthly Total</span>
+            <span className="text-sm font-bold text-[#1B4332] tabular-nums">{formatCurrency(monthlyTotal)}</span>
+          </div>
+        </div>
 
-          {/* Totals row */}
-          <div
-            className="grid items-center px-6 py-3 bg-slate-50 font-semibold"
-            style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
-          >
-            <span className="text-xs text-slate-600 uppercase tracking-wide sticky left-0 bg-slate-50 z-10 pr-2">Monthly Total</span>
-            {budgetPeriods.map((period, periodIdx) => {
-              const total = getBudgetMonthlyTotal(period, periodIdx);
-              return (
-                <div key={periodIdx} className="px-1 text-right">
-                  <span
-                    className={cn(
+        {/* ── Desktop: multi-period grid with horizontal scroll ── */}
+        <div className="hidden md:block overflow-x-auto">
+          <div className="divide-y divide-slate-50" style={{ minWidth: `${200 + budgetPeriods.length * 88 + 36}px` }}>
+            {/* Column headers */}
+            <div
+              className="grid items-center px-6 py-2 bg-slate-50 text-[10px] font-semibold text-slate-400 uppercase tracking-wide"
+              style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
+            >
+              <span className="sticky left-0 bg-slate-50 z-10 pr-2">Expense</span>
+              {budgetPeriods.map((p, i) => (
+                <span key={i} className="text-center truncate px-1">
+                  {p.name.split(" ")[0]}
+                </span>
+              ))}
+              <span></span>
+            </div>
+
+            {activePeriod.items.map((item, itemIdx) => (
+              <div
+                key={itemIdx}
+                className="grid items-center px-6 py-2 hover:bg-slate-50/50 transition-colors"
+                style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
+              >
+                <input
+                  type="text"
+                  value={item.label}
+                  onChange={(e) => updateItemLabel(itemIdx, e.target.value)}
+                  className="text-sm text-slate-700 bg-white border-0 focus:outline-none focus:border focus:border-slate-200 rounded px-1 py-0.5 -mx-1 w-full sticky left-0 z-10"
+                />
+                {budgetPeriods.map((_, periodIdx) => (
+                  <div key={periodIdx} className="px-1">
+                    <NumericCell
+                      value={item.amounts[periodIdx] ?? 0}
+                      onChange={(v) => updateItemAmount(itemIdx, periodIdx, v)}
+                      className={cn(
+                        "w-full text-xs text-right tabular-nums px-1.5 py-1 rounded border transition-colors focus:outline-none",
+                        periodIdx === activePeriodIdx
+                          ? "bg-[#1B4332]/5 border-[#1B4332]/20 text-slate-800 font-semibold focus:border-[#1B4332]"
+                          : "bg-transparent border-transparent text-slate-400 focus:bg-white focus:border-slate-200"
+                      )}
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={() => removeItem(itemIdx)}
+                  className="flex items-center justify-center w-7 h-7 rounded text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+
+            {/* Totals row */}
+            <div
+              className="grid items-center px-6 py-3 bg-slate-50 font-semibold"
+              style={{ gridTemplateColumns: `200px repeat(${budgetPeriods.length}, 88px) 36px` }}
+            >
+              <span className="text-xs text-slate-600 uppercase tracking-wide sticky left-0 bg-slate-50 z-10 pr-2">Monthly Total</span>
+              {budgetPeriods.map((period, periodIdx) => {
+                const total = getBudgetMonthlyTotal(period, periodIdx);
+                return (
+                  <div key={periodIdx} className="px-1 text-right">
+                    <span className={cn(
                       "text-xs tabular-nums font-bold",
                       periodIdx === activePeriodIdx ? "text-[#1B4332]" : "text-slate-400"
-                    )}
-                  >
-                    {formatCurrency(total)}
-                  </span>
-                </div>
-              );
-            })}
-            <span></span>
+                    )}>
+                      {formatCurrency(total)}
+                    </span>
+                  </div>
+                );
+              })}
+              <span></span>
+            </div>
           </div>
-        </div>{/* end min-w wrapper */}
-        </div>{/* end overflow-x-auto */}
+        </div>
 
         {/* Add item */}
-        <div className="px-6 py-3 border-t border-slate-100">
+        <div className="px-4 sm:px-6 py-3 border-t border-slate-100">
           <button
             onClick={addItem}
             className="flex items-center gap-2 text-sm text-[#1B4332] font-medium hover:text-[#2D6A4F] transition-colors"
