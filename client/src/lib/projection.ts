@@ -979,47 +979,42 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
 // ─── Default Inputs ───────────────────────────────────────────────────────────
 
 export const DEFAULT_BUDGET_ITEMS: BudgetItem[] = [
-  { label: "TV/Internet/Subscriptions", amounts: [100, 100, 100, 100, 100, 100] },
-  { label: "DMV Registration",          amounts: [38,  38,  38,  38,  38,  38 ] },
-  { label: "Gardener",                  amounts: [150, 150, 150, 150, 150, 150] },
-  { label: "Garbage",                   amounts: [42,  42,  42,  42,  42,  42 ] },
-  { label: "Water",                     amounts: [100, 100, 100, 100, 100, 100] },
-  { label: "PG&E / Electricity",        amounts: [400, 400, 400, 400, 400, 400] },
-  { label: "Taxes (misc)",              amounts: [10,  10,  10,  10,  10,  10 ] },
-  { label: "Phone",                     amounts: [50,  50,  75,  100, 100, 100] },
-  { label: "Life Insurance",            amounts: [100, 100, 100, 100, 100, 100] },
-  { label: "Auto Insurance",            amounts: [150, 150, 150, 150, 150, 150] },
-  { label: "Umbrella Insurance",        amounts: [150, 150, 150, 150, 150, 150] },
-  { label: "Property Maintenance",      amounts: [300, 300, 300, 300, 300, 300] },
-  { label: "Groceries & Supplies",      amounts: [1250,1400,1600,1600,1000,1000] },
-  { label: "Gifts",                     amounts: [125, 150, 150, 150, 125, 125] },
-  { label: "Entertainment",             amounts: [100, 100, 150, 150, 100, 100] },
-  { label: "Car Payment",               amounts: [400, 400, 400, 400, 400, 400] },
-  { label: "Gas / Tolls / Maintenance", amounts: [350, 350, 350, 350, 350, 350] },
-  { label: "Clothes",                   amounts: [100, 200, 300, 300, 100, 100] },
-  { label: "Trips / Getaways",          amounts: [500, 500, 500, 500, 500, 500] },
-  { label: "Restaurants",               amounts: [300, 300, 300, 300, 300, 300] },
-  { label: "Gym",                       amounts: [60,  60,  60,  60,  60,  60 ] },
-  { label: "Grooming / Self Care",      amounts: [200, 200, 200, 200, 200, 200] },
-  { label: "Dog",                       amounts: [0,   0,   150, 150, 150, 150] },
-  { label: "Sports / Activities",       amounts: [100, 200, 1000,400, 0,   0  ] },
-  { label: "School / Tuition",          amounts: [0,   2500,2500,4200,8300,0  ] },
-  { label: "Day Care",                  amounts: [5000,0,   0,   0,   0,   0  ] },
-  { label: "Health Care",               amounts: [50,  50,  50,  50,  50,  50 ] },
+  { label: "TV/Internet/Subscriptions", amounts: [0] },
+  { label: "DMV Registration",          amounts: [0] },
+  { label: "Gardener",                  amounts: [0] },
+  { label: "Garbage",                   amounts: [0] },
+  { label: "Water",                     amounts: [0] },
+  { label: "Electricity",               amounts: [0] },
+  { label: "Taxes (misc)",              amounts: [0] },
+  { label: "Phone",                     amounts: [0] },
+  { label: "Life Insurance",            amounts: [0] },
+  { label: "Auto Insurance",            amounts: [0] },
+  { label: "Umbrella Insurance",        amounts: [0] },
+  { label: "Property Maintenance",      amounts: [0] },
+  { label: "Groceries & Supplies",      amounts: [0] },
+  { label: "Gifts",                     amounts: [0] },
+  { label: "Entertainment",             amounts: [0] },
+  { label: "Car Payment",               amounts: [0] },
+  { label: "Gas / Tolls / Maintenance", amounts: [0] },
+  { label: "Clothes",                   amounts: [0] },
+  { label: "Trips / Getaways",          amounts: [0] },
+  { label: "Restaurants",               amounts: [0] },
+  { label: "Gym",                       amounts: [0] },
+  { label: "Grooming / Self Care",      amounts: [0] },
+  { label: "Dog",                       amounts: [0] },
+  { label: "Sports / Activities",       amounts: [0] },
+  { label: "School / Tuition",          amounts: [0] },
+  { label: "Day Care",                  amounts: [0] },
+  { label: "Health Care",               amounts: [0] },
 ];
 
 export const DEFAULT_BUDGET_PERIODS: BudgetPeriod[] = [
-  { name: "Nanny / Daycare",          startAge: 35, items: DEFAULT_BUDGET_ITEMS },
-  { name: "School",                   startAge: 38, items: DEFAULT_BUDGET_ITEMS },
-  { name: "Activity-Oriented School", startAge: 41, items: DEFAULT_BUDGET_ITEMS },
-  { name: "High School",              startAge: 46, items: DEFAULT_BUDGET_ITEMS },
-  { name: "College",                  startAge: 50, items: DEFAULT_BUDGET_ITEMS },
-  { name: "Post College",             startAge: 54, items: DEFAULT_BUDGET_ITEMS },
+  { name: "Default", startAge: 50, items: DEFAULT_BUDGET_ITEMS },
 ];
 
 export const DEFAULT_INPUTS: RetirementInputs = {
-  currentAge: 35,
-  retirementAge: 65,
+  currentAge: 51,
+  retirementAge: 55,
   withdrawalAge: 65,
   projectionEndAge: 90,
 
@@ -1028,24 +1023,24 @@ export const DEFAULT_INPUTS: RetirementInputs = {
 
   // Dynamic accounts list (source of truth for balances)
   accounts: [
-    { id: "acc-cash",      name: "Checking / Savings",  type: "cash" as AccountType,      balance: 25000, annualContribution: 0 },
-    { id: "acc-invest",   name: "Taxable Brokerage",   type: "investment" as AccountType, balance: 75000, annualContribution: 0 },
-    { id: "acc-401k",     name: "401(k)",              type: "401k" as AccountType,       balance: 85000, annualContribution: 0 },
-    { id: "acc-roth401k", name: "Roth 401(k)",         type: "roth401k" as AccountType,   balance: 30000, annualContribution: 23000 },
-    { id: "acc-rothira",  name: "Roth IRA",            type: "rothIRA" as AccountType,    balance: 25000, annualContribution: 14000 },
+    { id: "acc-cash",      name: "Checking / Savings",  type: "cash" as AccountType,      balance: 25000,  annualContribution: 0 },
+    { id: "acc-invest",    name: "Taxable Brokerage",   type: "investment" as AccountType, balance: 150000, annualContribution: 0 },
+    { id: "acc-401k",      name: "401(k)",              type: "401k" as AccountType,       balance: 85000,  annualContribution: 0 },
+    { id: "acc-roth401k",  name: "Roth 401(k)",         type: "roth401k" as AccountType,   balance: 75000,  annualContribution: 23000 },
+    { id: "acc-rothira",   name: "Roth IRA",            type: "rothIRA" as AccountType,    balance: 50000,  annualContribution: 7500 },
   ],
   // Legacy fields — kept for backward compat, overridden by accounts[] at runtime
   currentCash: 25000,
-  currentInvestments: 75000,
+  currentInvestments: 150000,
   current401k: 85000,
-  currentRoth401k: 30000,
-  currentRothIRA: 25000,
+  currentRoth401k: 75000,
+  currentRothIRA: 50000,
   currentIRA: 0,
 
-  homeValue: 420000,
-  homeLoan: 336000,
-  mortgageRate: 0.065,
-  mortgageTotalYears: 30,
+  homeValue: 0,
+  homeLoan: 0,
+  mortgageRate: 0,
+  mortgageTotalYears: 10,
   mortgageElapsedMonths: 0,
   extraMortgageMonthly: 0,
 
@@ -1055,20 +1050,16 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   investmentGrowthRate: 0.07,
   inflationRate: 0.03,
 
-  k401Contribution: 0,          // traditional 401K contribution (0 = using Roth 401K only)
+  k401Contribution: 0,
   roth401kContribution: 23000,
-  rothIRAContribution: 14000,
-  iraContribution: 0,            // traditional IRA contribution
+  rothIRAContribution: 7500,
+  iraContribution: 0,
 
-  // Social Security defaults: start at 67 (full retirement age), ~$2,200/mo
   socialSecurityEnabled: true,
   socialSecurityStartAge: 67,
   socialSecurityMonthly: 2200,
 
-  // No income phases by default
   incomePhases: [],
-
-  // No one-time events by default
   oneTimeEvents: [],
 
   budgetPeriods: DEFAULT_BUDGET_PERIODS,
@@ -1083,24 +1074,18 @@ export const DEFAULT_INPUTS: RetirementInputs = {
     guardrailCut: 0.10,
   },
 
-  // No additional properties by default
   additionalProperties: [],
-  // Roth Conversion Strategy — disabled by default
   rothConversionEnabled: false,
   rothConversionStartAge: 60,
   rothConversionEndAge: 72,
   rothConversionAnnualAmount: 50000,
   rothConversionSource: "k401" as const,
-  // Employer match (disabled by default)
   employerMatchPercent: 0,
   employerMatchLimit: 0.06,
-  // Catch-up contributions (enabled by default)
   catchUpEnabled: true,
-  // Dynamic tax filing configuration
-  filingStatus: "married_joint" as FilingStatus,
+  filingStatus: "single" as FilingStatus,
   stateCode: "CA",
   includeFica: false,
-  // Partner / Spouse — disabled by default
   partnerEnabled: false,
   partnerName: "Partner",
   partnerCurrentAge: 33,
@@ -1110,6 +1095,15 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   partnerSocialSecurityEnabled: true,
   partnerSocialSecurityStartAge: 67,
   partnerSocialSecurityMonthly: 1800,
+  dateOfBirth: "1975-01-01",
+  rothOptimizer: {
+    enabled: false,
+    startAge: 60,
+    endAge: 72,
+    source: "k401",
+    annualCap: 0,
+    schedule: {},
+  },
 };
 
 // ─── Monte Carlo Simulation ───────────────────────────────────────────────────
