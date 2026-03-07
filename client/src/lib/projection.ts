@@ -1008,38 +1008,81 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
 
 // ─── Default Inputs ───────────────────────────────────────────────────────────
 
+// ─── California baseline budget for a married couple at age 50 ───────────────
+// Sources: CA LAO Housing Tracker (2025), BLS Consumer Expenditure Survey,
+// Covered CA health plan averages, AAA auto cost data, USDA food cost reports.
+// All amounts are monthly. Adjust to match your actual situation.
 export const DEFAULT_BUDGET_ITEMS: BudgetItem[] = [
-  { label: "TV/Internet/Subscriptions", amounts: [0] },
-  { label: "DMV Registration",          amounts: [0] },
-  { label: "Gardener",                  amounts: [0] },
-  { label: "Garbage",                   amounts: [0] },
-  { label: "Water",                     amounts: [0] },
-  { label: "Electricity",               amounts: [0] },
-  { label: "Taxes (misc)",              amounts: [0] },
-  { label: "Phone",                     amounts: [0] },
-  { label: "Life Insurance",            amounts: [0] },
-  { label: "Auto Insurance",            amounts: [0] },
-  { label: "Umbrella Insurance",        amounts: [0] },
-  { label: "Property Maintenance",      amounts: [0] },
-  { label: "Groceries & Supplies",      amounts: [0] },
-  { label: "Gifts",                     amounts: [0] },
-  { label: "Entertainment",             amounts: [0] },
-  { label: "Car Payment",               amounts: [0] },
-  { label: "Gas / Tolls / Maintenance", amounts: [0] },
-  { label: "Clothes",                   amounts: [0] },
-  { label: "Trips / Getaways",          amounts: [0] },
-  { label: "Restaurants",               amounts: [0] },
-  { label: "Gym",                       amounts: [0] },
-  { label: "Grooming / Self Care",      amounts: [0] },
+  // Housing
+  { label: "Rent",                       amounts: [2800] },  // CA avg 2-BR rent (LAO 2025: $2,680 statewide; ~$2,800 suburban)
+  { label: "Electricity",               amounts: [200] },   // CA avg ~60% above national avg (PG&E/SCE 2025)
+  { label: "Water",                     amounts: [80] },
+  { label: "Garbage",                   amounts: [50] },
+  { label: "Property Maintenance",      amounts: [0] },     // 0 if renting; ~$400 if owning
+  // Insurance
+  { label: "Health Care",               amounts: [800] },   // Covered CA silver plan, 2 adults ~50, after subsidy
+  { label: "Life Insurance",            amounts: [150] },   // 20-yr term, 2 policies
+  { label: "Auto Insurance",            amounts: [250] },   // CA avg: highest in US, 2 cars
+  { label: "Umbrella Insurance",        amounts: [30] },
+  // Transportation
+  { label: "Car Payment",               amounts: [700] },   // avg new car payment CA 2025
+  { label: "Gas / Tolls / Maintenance", amounts: [350] },   // 2 cars, CA gas avg $4.50/gal
+  { label: "DMV Registration",          amounts: [30] },    // ~$360/yr ÷ 12
+  // Food
+  { label: "Groceries & Supplies",      amounts: [900] },   // USDA moderate-cost plan, 2 adults 50+
+  { label: "Restaurants",               amounts: [400] },   // dining out, CA avg
+  // Utilities & Subscriptions
+  { label: "Phone",                     amounts: [150] },   // 2 lines
+  { label: "TV/Internet/Subscriptions", amounts: [150] },   // internet + streaming
+  // Personal
+  { label: "Clothes",                   amounts: [150] },
+  { label: "Grooming / Self Care",      amounts: [100] },
+  { label: "Gym",                       amounts: [80] },
+  // Lifestyle
+  { label: "Entertainment",             amounts: [200] },
+  { label: "Trips / Getaways",          amounts: [400] },   // ~$4,800/yr
+  { label: "Gifts",                     amounts: [150] },
+  { label: "Sports / Activities",       amounts: [100] },
+  // Household
+  { label: "Gardener",                  amounts: [150] },   // common in CA
+  // Optional / variable
   { label: "Dog",                       amounts: [0] },
-  { label: "Sports / Activities",       amounts: [0] },
   { label: "School / Tuition",          amounts: [0] },
   { label: "Day Care",                  amounts: [0] },
-  { label: "Health Care",               amounts: [0] },
+  { label: "Taxes (misc)",              amounts: [0] },
 ];
 
 export const DEFAULT_BUDGET_PERIODS: BudgetPeriod[] = [
-  { name: "Default", startAge: 50, items: DEFAULT_BUDGET_ITEMS },
+  { name: "Working (50–54)", startAge: 50, items: DEFAULT_BUDGET_ITEMS },
+  {
+    name: "Early Retirement (55–64)",
+    startAge: 55,
+    items: DEFAULT_BUDGET_ITEMS.map(item => {
+      // In early retirement: no car payment (paid off), less commute costs,
+      // more travel, higher health care (pre-Medicare), no work clothes
+      if (item.label === "Car Payment")               return { ...item, amounts: [0] };
+      if (item.label === "Gas / Tolls / Maintenance") return { ...item, amounts: [200] };
+      if (item.label === "Health Care")               return { ...item, amounts: [1200] }; // pre-Medicare, full premium
+      if (item.label === "Trips / Getaways")          return { ...item, amounts: [600] };
+      if (item.label === "Clothes")                   return { ...item, amounts: [80] };
+      return { ...item };
+    }),
+  },
+  {
+    name: "Medicare (65+)",
+    startAge: 65,
+    items: DEFAULT_BUDGET_ITEMS.map(item => {
+      // Medicare replaces private health insurance; travel may slow; simpler lifestyle
+      if (item.label === "Car Payment")               return { ...item, amounts: [0] };
+      if (item.label === "Gas / Tolls / Maintenance") return { ...item, amounts: [150] };
+      if (item.label === "Health Care")               return { ...item, amounts: [500] }; // Medicare Part B+D+supplement
+      if (item.label === "Trips / Getaways")          return { ...item, amounts: [400] };
+      if (item.label === "Clothes")                   return { ...item, amounts: [60] };
+      if (item.label === "Gym")                       return { ...item, amounts: [50] };
+      if (item.label === "Restaurants")               return { ...item, amounts: [300] };
+      return { ...item };
+    }),
+  },
 ];
 
 export const DEFAULT_INPUTS: RetirementInputs = {
