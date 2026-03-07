@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE users SET planTier = 'pro' WHERE planTier = 'free';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3KN2LnNHTEDqEyj.314e7b3ea523 --database GenHb4QZTAGMkdmFbXCBeo --execute UPDATE users SET planTier = 'pro' WHERE planTier = 'free';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 749
+}

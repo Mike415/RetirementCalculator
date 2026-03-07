@@ -48,3 +48,8 @@
 - [ ] Create real Stripe products and add price IDs to env (STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO)
 - [ ] Claim Stripe sandbox at https://dashboard.stripe.com/claim_sandbox/...
 - [ ] Test end-to-end checkout with card 4242 4242 4242 4242
+
+## Beta / Test Phase
+- [x] Set default planTier to "pro" for all new sign-ups
+- [x] Migrate existing free users to pro tier in DB
+- [x] Add a visible "Beta — Pro features unlocked" badge in the sidebar

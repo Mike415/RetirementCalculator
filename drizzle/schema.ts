@@ -20,7 +20,8 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   /** Subscription tier: free | basic | pro */
-  planTier: mysqlEnum("planTier", ["free", "basic", "pro"]).default("free").notNull(),
+  // NOTE: Default is "pro" during the open beta phase — all new users get full access.
+  planTier: mysqlEnum("planTier", ["free", "basic", "pro"]).default("pro").notNull(),
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
   subscriptionEndsAt: timestamp("subscriptionEndsAt"),

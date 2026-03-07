@@ -54,6 +54,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     }
+    // planTier is only set on insert (new users), never overwritten on update
+    if (user.planTier !== undefined) {
+      values.planTier = user.planTier;
+      // NOTE: do NOT add to updateSet — we don't want to overwrite an upgraded tier
+    }
 
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();

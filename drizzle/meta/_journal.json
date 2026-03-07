@@ -15,6 +15,13 @@
       "when": 1772924417107,
       "tag": "0001_curly_maverick",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1772927701121,
+      "tag": "0002_wide_thanos",
+      "breakpoints": true
     }
   ]
 }

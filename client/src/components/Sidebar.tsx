@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Settings2,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
   Upload,
 } from "lucide-react";
@@ -252,7 +253,15 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           {confirming ? "Click again to confirm reset" : "Reset to defaults"}
         </button>
 
-        <div className="px-1 pt-2 space-y-1.5">
+        {/* Beta badge */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D97706]/15 border border-[#D97706]/25">
+          <Sparkles className="w-3 h-3 text-[#D97706] flex-shrink-0" />
+          <span className="text-[10px] font-semibold text-[#D97706]/90 leading-tight">
+            Beta — Pro features unlocked
+          </span>
+        </div>
+
+        <div className="px-1 pt-1 space-y-1.5">
           <p className="text-[10px] text-white/30 leading-relaxed">
             Values auto-saved locally in your browser.
           </p>
