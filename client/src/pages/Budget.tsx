@@ -11,7 +11,7 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { getBudgetMonthlyTotal } from "@/lib/projection";
 import { cn } from "@/lib/utils";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Plus, Trash2, X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 const PERIOD_COLORS = [
@@ -192,6 +192,22 @@ export default function Budget() {
     updateInput("budgetPeriods", newPeriods);
   };
 
+  const deletePeriod = (idx: number) => {
+    if (budgetPeriods.length <= 1) return; // must keep at least one period
+    // Remove the period column from every item's amounts array
+    const newPeriods = budgetPeriods
+      .filter((_, i) => i !== idx)
+      .map((p) => ({
+        ...p,
+        items: p.items.map((item) => ({
+          ...item,
+          amounts: item.amounts.filter((_, i) => i !== idx),
+        })),
+      }));
+    updateInput("budgetPeriods", newPeriods);
+    setActivePeriodIdx((prev) => Math.min(prev, newPeriods.length - 1));
+  };
+
   const duplicatePeriod = (idx: number) => {
     const source = budgetPeriods[idx];
     const clone = {
@@ -291,14 +307,26 @@ export default function Budget() {
 
           {/* Bottom row: duplicate + monthly total */}
           <div className="flex items-center justify-between mt-3">
-            <button
-              onClick={() => duplicatePeriod(activePeriodIdx)}
-              title="Duplicate this period"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              Duplicate
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => duplicatePeriod(activePeriodIdx)}
+                title="Duplicate this period"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Duplicate
+              </button>
+              {budgetPeriods.length > 1 && (
+                <button
+                  onClick={() => deletePeriod(activePeriodIdx)}
+                  title="Delete this period"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 bg-white border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Delete Period
+                </button>
+              )}
+            </div>
             <div className="text-right">
               <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Total</p>
               <p className="text-xl font-bold text-[#1B4332] tabular-nums leading-tight">
