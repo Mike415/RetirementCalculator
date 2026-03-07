@@ -1,0 +1,50 @@
+# Project Retire — TODO
+
+## Auth & Backend
+- [x] Remove all Manus OAuth/auth dependencies
+- [x] Install and configure Clerk React + Express SDKs
+- [x] Rewrite server/_core/context.ts to verify Clerk JWT Bearer tokens
+- [x] Auto-provision users on first Clerk sign-in
+- [x] Rewrite main.tsx to use ClerkProvider + attach JWT to tRPC requests
+- [x] Rewrite useAuth hook to use Clerk's useUser/useAuth
+- [x] Show Clerk UserButton in sidebar when signed in
+
+## Database & Plans API
+- [x] Design schema: users (with planTier, stripeCustomerId), plans, planVersions
+- [x] Run pnpm db:push to create tables
+- [x] Implement plan CRUD helpers in server/db.ts
+- [x] Implement plan tRPC procedures (list, get, create, save, delete, versions)
+- [x] Tier-gating: free=0 plans, basic=1 plan, pro=10 plans
+
+## Cloud Sync
+- [x] Replace GitHub Gist sync with tRPC-backed cloud sync
+- [x] Auto-save debounced 3s after each change (signed-in users)
+- [x] Load-on-login: offer to restore cloud plan when user signs in
+- [x] Save indicator in sidebar (Saved / Saving... / timestamp)
+- [x] Sign-in prompt in CloudSync when user is not authenticated
+
+## Stripe Billing
+- [x] Install stripe + @stripe/stripe-js packages
+- [x] Define products in server/products.ts (Basic $4.99/mo, Pro $9.99/mo)
+- [x] Implement createCheckoutSession in server/stripe.ts
+- [x] Implement createPortalSession for subscription management
+- [x] Register Stripe webhook at /api/stripe/webhook (before express.json)
+- [x] Handle checkout.session.completed → update user tier
+- [x] Handle customer.subscription.updated/deleted → update user tier
+- [x] Add billing tRPC procedures (products, createCheckout, createPortal)
+
+## Feature Gating UI
+- [x] Create Billing page with 3-tier card layout (Free / Basic / Pro)
+- [x] Add Billing & Plans link to sidebar
+- [x] Show current plan badge and subscription renewal date
+- [x] Manage billing button → Stripe Customer Portal
+- [x] Test card info displayed on billing page
+
+## Testing
+- [x] server/auth.logout.test.ts — Clerk sign-out test
+- [x] server/plans.billing.test.ts — tier gating logic tests (8 tests)
+
+## Pending (requires Stripe Dashboard setup)
+- [ ] Create real Stripe products and add price IDs to env (STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO)
+- [ ] Claim Stripe sandbox at https://dashboard.stripe.com/claim_sandbox/...
+- [ ] Test end-to-end checkout with card 4242 4242 4242 4242

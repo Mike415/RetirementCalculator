@@ -10,11 +10,13 @@
 import CloudSync from "@/components/CloudSync";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { cn } from "@/lib/utils";
+import { UserButton, useUser } from "@clerk/react";
 import {
   BarChart3,
   BookOpen,
   Briefcase,
   CalendarClock,
+  CreditCard,
   DollarSign,
   Download,
   GitCompare,
@@ -46,23 +48,29 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Dashboard",
     items: [
-      { path: "/overview",    label: "Overview",          icon: BarChart3  },
-      { path: "/projections", label: "Projections Table", icon: TrendingUp },
-      { path: "/scenarios",     label: "Scenarios",           icon: GitCompare },
-      { path: "/distribution",   label: "Distribution Mgr",    icon: Layers     },
+      { path: "/overview",      label: "Overview",          icon: BarChart3  },
+      { path: "/projections",   label: "Projections Table", icon: TrendingUp },
+      { path: "/scenarios",     label: "Scenarios",         icon: GitCompare },
+      { path: "/distribution",  label: "Distribution Mgr",  icon: Layers     },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { path: "/billing", label: "Billing & Plans", icon: CreditCard },
     ],
   },
   {
     title: "Inputs",
     items: [
       { path: "/accounts",        label: "Accounts & Timeline", icon: PiggyBank   },
-      { path: "/income",          label: "Income & Taxes",   icon: DollarSign  },
-      { path: "/alt-income",    label: "Alternative Income",    icon: Briefcase   },
-      { path: "/home",            label: "Home & Mortgage",  icon: Home        },
-      { path: "/assumptions",     label: "Assumptions",      icon: Settings2   },
-      { path: "/budget",          label: "Budget Periods",   icon: BookOpen    },
-      { path: "/social-security", label: "Social Security",  icon: ShieldCheck },
-      { path: "/events",          label: "One-Time Events",  icon: CalendarClock },
+      { path: "/income",          label: "Income & Taxes",      icon: DollarSign  },
+      { path: "/alt-income",      label: "Alternative Income",  icon: Briefcase   },
+      { path: "/home",            label: "Home & Mortgage",     icon: Home        },
+      { path: "/assumptions",     label: "Assumptions",         icon: Settings2   },
+      { path: "/budget",          label: "Budget Periods",      icon: BookOpen    },
+      { path: "/social-security", label: "Social Security",     icon: ShieldCheck },
+      { path: "/events",          label: "One-Time Events",     icon: CalendarClock },
     ],
   },
 ];
@@ -77,6 +85,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const [location] = useLocation();
   const [confirming, setConfirming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isSignedIn, user } = useUser();
 
   const handleReset = () => {
     if (!confirming) {
@@ -91,7 +100,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    e.target.value = ""; // reset so same file can be re-imported
+    e.target.value = "";
     const result = await importPlan(file);
     if (result.ok) {
       toast.success("Plan imported successfully!");
@@ -125,6 +134,28 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         </Link>
       </div>
 
+      {/* User profile strip (when signed in) */}
+      {isSignedIn && user && (
+        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2.5">
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "w-7 h-7",
+                userButtonPopoverCard: "shadow-xl",
+              },
+            }}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-white/90 truncate">
+              {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
+            </p>
+            <p className="text-[9px] text-white/40 truncate">
+              {user.primaryEmailAddress?.emailAddress}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
@@ -137,9 +168,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 const Icon = item.icon;
                 const active = isActive(item.path);
 
-                // Badge for social security (show "Off" if disabled)
                 const showSsBadge = item.path === "/social-security" && !inputs.socialSecurityEnabled;
-                // Badge for events count
                 const eventsCount = item.path === "/events" ? (inputs.oneTimeEvents?.length ?? 0) : 0;
 
                 return (

@@ -1,342 +1,262 @@
 /**
- * CloudSync Component
- * ───────────────────
- * Provides GitHub Gist cloud sync using a Personal Access Token (PAT).
+ * CloudSync — Clerk-authenticated cloud save/load using tRPC backend.
  *
- * Why PAT instead of Device Flow OAuth:
- *   GitHub's Device Flow endpoints (github.com/login/device/code and
- *   github.com/login/oauth/access_token) block cross-origin requests from
- *   browsers, so Device Flow cannot work in a static web app.
- *   A PAT with the "gist" scope is the simplest, most reliable alternative.
+ * When the user is signed in:
+ *   - On first load, checks if a cloud plan exists and offers to load it.
+ *   - "Save to Cloud" saves the current plan to the database.
+ *   - "Load from Cloud" loads the most recent saved plan.
+ *   - Auto-save triggers 3 seconds after the last change (debounced).
  *
- * What gets synced:
- *   - Main plan inputs (retirement-planner-v1)
- *   - Saved scenarios (retirement-planner-scenarios-v1)
- *
- * Flow:
- *   1. User creates a GitHub PAT with "gist" scope at github.com/settings/tokens
- *   2. User pastes the token into the input field
- *   3. Token is validated by fetching /user, then stored in localStorage
- *   4. Save / Load buttons appear
+ * When signed out, shows a sign-in prompt.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import {
-  Cloud, CloudDownload, CloudUpload, LogOut, Loader2,
-  AlertCircle, ExternalLink, KeyRound, Eye, EyeOff,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import { usePlanner } from '@/contexts/PlannerContext';
-import {
-  getAuthenticatedUser,
-  saveToGist,
-  loadFromGist,
-  getStoredToken,
-  setStoredToken,
-  clearStoredToken,
-} from '@/lib/githubGist';
+import { SignInButton, useUser } from "@clerk/react";
+import { Cloud, CloudDownload, CloudUpload, Loader2, LogIn } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { usePlanner } from "@/contexts/PlannerContext";
+import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
 
-// The same key used by Scenarios.tsx
-const SCENARIOS_KEY = 'retirement-planner-scenarios-v1';
+const CLOUD_PLAN_NAME = "My Retirement Plan";
+const SCENARIOS_KEY = "retirement-planner-scenarios-v1";
 
-interface UserInfo {
-  login: string;
-  avatar_url: string;
-}
+type SyncStatus = "idle" | "saving" | "loading" | "saved" | "error";
 
 export default function CloudSync() {
+  const { isSignedIn, isLoaded } = useUser();
   const { inputs, importFromObject } = usePlanner();
+  const [status, setStatus] = useState<SyncStatus>("idle");
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [cloudPlanId, setCloudPlanId] = useState<number | null>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstLoad = useRef(true);
 
-  const [token, setToken] = useState<string | null>(() => getStoredToken());
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [status, setStatus] = useState<
-    'idle' | 'connecting' | 'saving' | 'loading' | 'error'
-  >('idle');
-  const [patInput, setPatInput] = useState('');
-  const [showPat, setShowPat] = useState(false);
-  const [lastSynced, setLastSynced] = useState<string | null>(
-    () => localStorage.getItem('gh_gist_last_synced')
+  // ── tRPC hooks ──────────────────────────────────────────────────────────────
+  const plansQuery = trpc.plans.list.useQuery(undefined, {
+    enabled: Boolean(isSignedIn),
+    retry: false,
+  });
+
+  const getPlan = trpc.plans.get.useQuery(
+    { planId: cloudPlanId! },
+    { enabled: cloudPlanId !== null && isSignedIn === true, retry: false }
   );
-  const [expanded, setExpanded] = useState(false);
 
-  // Load user info when token is available
+  const createPlan = trpc.plans.create.useMutation();
+  const savePlan = trpc.plans.save.useMutation();
+  const utils = trpc.useUtils();
+
+  // ── Find or remember the cloud plan ID ─────────────────────────────────────
   useEffect(() => {
-    if (!token) {
-      setUser(null);
-      return;
+    if (!plansQuery.data) return;
+    const existing = plansQuery.data.find((p) => p.name === CLOUD_PLAN_NAME);
+    if (existing) {
+      setCloudPlanId(existing.id);
     }
-    getAuthenticatedUser(token)
-      .then(setUser)
-      .catch(() => {
-        // Token is invalid or expired
-        clearStoredToken();
-        setToken(null);
-        setUser(null);
+  }, [plansQuery.data]);
+
+  // ── Load on first login ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isFirstLoad.current) return;
+    if (!isSignedIn || !getPlan.data) return;
+    isFirstLoad.current = false;
+
+    // Offer to load cloud plan
+    const planData = getPlan.data.data as Record<string, unknown> | null;
+    if (planData) {
+      toast("Cloud plan found", {
+        description: "Load your saved plan from the cloud?",
+        action: {
+          label: "Load",
+          onClick: () => doLoad(planData),
+        },
+        duration: 8000,
       });
-  }, [token]);
+    }
+  }, [isSignedIn, getPlan.data]);
 
-  const handleConnect = useCallback(async () => {
-    const pat = patInput.trim();
-    if (!pat) {
-      toast.error('Please enter a Personal Access Token.');
+  // ── Save implementation ─────────────────────────────────────────────────────
+  const doSave = useCallback(async (silent = false) => {
+    if (!isSignedIn) return;
+    setStatus("saving");
+
+    let scenarios: unknown = [];
+    try {
+      const raw = localStorage.getItem(SCENARIOS_KEY);
+      if (raw) scenarios = JSON.parse(raw);
+    } catch { /* ignore */ }
+
+    const payload = {
+      _version: 2,
+      _exported: new Date().toISOString(),
+      inputs,
+      scenarios,
+    };
+
+    try {
+      if (cloudPlanId) {
+        await savePlan.mutateAsync({ planId: cloudPlanId, data: payload, name: CLOUD_PLAN_NAME });
+      } else {
+        const result = await createPlan.mutateAsync({ name: CLOUD_PLAN_NAME, data: payload });
+        setCloudPlanId(result.planId);
+        await utils.plans.list.invalidate();
+      }
+      setLastSaved(new Date());
+      setStatus("saved");
+      if (!silent) toast.success("Plan saved to cloud!");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch (err: unknown) {
+      setStatus("error");
+      const msg = err instanceof Error ? err.message : "Save failed";
+      if (!silent) toast.error(msg);
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  }, [isSignedIn, cloudPlanId, inputs, savePlan, createPlan, utils]);
+
+  // ── Load implementation ─────────────────────────────────────────────────────
+  const doLoad = useCallback((data: Record<string, unknown>) => {
+    const result = importFromObject(data);
+    if (!result.ok) {
+      toast.error(result.error ?? "Failed to load plan.");
       return;
     }
-    setStatus('connecting');
-    try {
-      const userInfo = await getAuthenticatedUser(pat);
-      setStoredToken(pat);
-      setToken(pat);
-      setUser(userInfo);
-      setPatInput('');
-      setStatus('idle');
-      toast.success(`Connected as @${userInfo.login}`);
-    } catch {
-      setStatus('idle');
-      toast.error('Invalid token or missing "gist" scope. Please check your PAT.');
-    }
-  }, [patInput]);
 
-  const handleSave = useCallback(async () => {
-    if (!token) return;
-    setStatus('saving');
-    try {
-      // Read scenarios directly from localStorage so we don't need to thread
-      // them through PlannerContext
-      let scenarios: unknown = [];
+    // Restore scenarios if present
+    if (Array.isArray(data.scenarios)) {
       try {
-        const raw = localStorage.getItem(SCENARIOS_KEY);
-        if (raw) scenarios = JSON.parse(raw);
+        localStorage.setItem(SCENARIOS_KEY, JSON.stringify(data.scenarios));
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: SCENARIOS_KEY,
+            newValue: JSON.stringify(data.scenarios),
+            storageArea: localStorage,
+          })
+        );
       } catch { /* ignore */ }
-
-      const payload = {
-        _version: 2,
-        _exported: new Date().toISOString(),
-        inputs,
-        scenarios,
-      };
-
-      await saveToGist(token, payload);
-      const now = new Date().toLocaleString();
-      setLastSynced(now);
-      localStorage.setItem('gh_gist_last_synced', now);
-      setStatus('idle');
-      toast.success('Plan saved to GitHub Gist!');
-    } catch (err: unknown) {
-      setStatus('idle');
-      const message = err instanceof Error ? err.message : 'Save failed';
-      toast.error(message);
     }
-  }, [token, inputs]);
+
+    toast.success("Plan loaded from cloud!");
+  }, [importFromObject]);
 
   const handleLoad = useCallback(async () => {
-    if (!token) return;
-    setStatus('loading');
-    try {
-      const data = await loadFromGist(token);
-      if (!data) {
-        setStatus('idle');
-        toast.info('No saved plan found in your GitHub Gists.');
-        return;
-      }
-
-      // Load main inputs
-      const result = importFromObject(data);
-      if (!result.ok) {
-        setStatus('idle');
-        toast.error(result.error ?? 'Failed to load plan.');
-        return;
-      }
-
-      // Load scenarios if present in the payload
-      const payload = data as Record<string, unknown>;
-      if (Array.isArray(payload.scenarios)) {
-        try {
-          localStorage.setItem(SCENARIOS_KEY, JSON.stringify(payload.scenarios));
-          // Force the Scenarios page to re-read by dispatching a storage event
-          window.dispatchEvent(
-            new StorageEvent('storage', {
-              key: SCENARIOS_KEY,
-              newValue: JSON.stringify(payload.scenarios),
-              storageArea: localStorage,
-            })
-          );
-        } catch { /* ignore */ }
-      }
-
-      const now = new Date().toLocaleString();
-      setLastSynced(now);
-      localStorage.setItem('gh_gist_last_synced', now);
-      setStatus('idle');
-      toast.success('Plan loaded from GitHub Gist!');
-    } catch (err: unknown) {
-      setStatus('idle');
-      const message = err instanceof Error ? err.message : 'Load failed';
-      toast.error(message);
+    if (!cloudPlanId) {
+      toast.info("No cloud plan found. Save your plan first.");
+      return;
     }
-  }, [token, importFromObject]);
+    setStatus("loading");
+    try {
+      const plan = await utils.plans.get.fetch({ planId: cloudPlanId });
+      const planData = plan.data as Record<string, unknown> | null;
+      if (!planData) {
+        toast.info("Cloud plan is empty.");
+        setStatus("idle");
+        return;
+      }
+      doLoad(planData);
+      setStatus("idle");
+    } catch (err: unknown) {
+      setStatus("error");
+      const msg = err instanceof Error ? err.message : "Load failed";
+      toast.error(msg);
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  }, [cloudPlanId, utils, doLoad]);
 
-  const handleSignOut = useCallback(() => {
-    clearStoredToken();
-    setToken(null);
-    setUser(null);
-    setLastSynced(null);
-    localStorage.removeItem('gh_gist_last_synced');
-    toast.success('Signed out of GitHub.');
-  }, []);
+  // ── Auto-save (debounced, 3s after last change) ─────────────────────────────
+  useEffect(() => {
+    if (!isSignedIn) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      doSave(true);
+    }, 3000);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [inputs, isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isBusy = status === 'saving' || status === 'loading' || status === 'connecting';
+  const isBusy = status === "saving" || status === "loading";
 
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center gap-2 px-3 py-2.5 bg-muted/50 hover:bg-muted transition-colors text-left"
-      >
-        <Cloud className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="text-xs font-medium text-foreground flex-1">Cloud Sync</span>
-        {token && user ? (
-          <span className="text-xs text-emerald-600 font-medium">● Connected</span>
-        ) : (
-          <span className="text-xs text-muted-foreground">GitHub Gist</span>
-        )}
-      </button>
+  // ── Not loaded yet ──────────────────────────────────────────────────────────
+  if (!isLoaded) return null;
 
-      {/* Body */}
-      {expanded && (
-        <div className="px-3 py-3 space-y-3 bg-background">
-
-          {/* Not connected */}
-          {!token && (
-            <div className="space-y-3">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Save your plan to a private GitHub Gist. Create a{' '}
-                <a
-                  href="https://github.com/settings/tokens/new?scopes=gist&description=Retirement+Planner+Sync"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-0.5"
-                >
-                  Personal Access Token
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-                {' '}with the <code className="bg-muted px-1 rounded text-xs">gist</code> scope.
-              </p>
-
-              <div className="space-y-2">
-                <div className="relative">
-                  <Input
-                    type={showPat ? 'text' : 'password'}
-                    placeholder="ghp_xxxxxxxxxxxx"
-                    value={patInput}
-                    onChange={(e) => setPatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
-                    className="text-xs pr-8 font-mono"
-                    disabled={isBusy}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPat((v) => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    tabIndex={-1}
-                  >
-                    {showPat ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-
-                <Button
-                  size="sm"
-                  className="w-full gap-2"
-                  onClick={handleConnect}
-                  disabled={isBusy || !patInput.trim()}
-                >
-                  {status === 'connecting' ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <KeyRound className="h-3.5 w-3.5" />
-                  )}
-                  {status === 'connecting' ? 'Connecting…' : 'Connect'}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Connected */}
-          {token && user && (
-            <div className="space-y-3">
-              {/* User info */}
-              <div className="flex items-center gap-2">
-                <img
-                  src={user.avatar_url}
-                  alt={user.login}
-                  className="h-6 w-6 rounded-full"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-foreground truncate">@{user.login}</p>
-                  {lastSynced && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      Last synced {lastSynced}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={handleSignOut}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                  title="Sign out"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              {/* Save / Load */}
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 text-xs bg-muted text-foreground border-border hover:bg-muted/80"
-                  onClick={handleSave}
-                  disabled={isBusy}
-                >
-                  {status === 'saving' ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <CloudUpload className="h-3.5 w-3.5" />
-                  )}
-                  {status === 'saving' ? 'Saving…' : 'Save'}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 text-xs bg-muted text-foreground border-border hover:bg-muted/80"
-                  onClick={handleLoad}
-                  disabled={isBusy}
-                >
-                  {status === 'loading' ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <CloudDownload className="h-3.5 w-3.5" />
-                  )}
-                  {status === 'loading' ? 'Loading…' : 'Load'}
-                </Button>
-              </div>
-
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Syncs your plan inputs and all saved scenarios.
-              </p>
-            </div>
-          )}
-
-          {/* Error state */}
-          {status === 'error' && (
-            <div className="flex items-center gap-2 text-xs text-destructive">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              <span>Connection failed. Please try again.</span>
-            </div>
-          )}
+  // ── Signed out ──────────────────────────────────────────────────────────────
+  if (!isSignedIn) {
+    return (
+      <div className="border border-white/10 rounded-lg px-3 py-2.5 bg-white/5">
+        <div className="flex items-center gap-2 mb-2">
+          <Cloud className="w-3.5 h-3.5 text-white/40" />
+          <span className="text-xs font-medium text-white/60">Cloud Sync</span>
         </div>
-      )}
+        <p className="text-[10px] text-white/40 leading-relaxed mb-2">
+          Sign in to save your plan to the cloud and access it from any device.
+        </p>
+        <SignInButton mode="modal">
+          <button className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-[#D97706] text-white text-xs font-medium hover:bg-[#B45309] transition-colors">
+            <LogIn className="w-3 h-3" />
+            Sign in to sync
+          </button>
+        </SignInButton>
+      </div>
+    );
+  }
+
+  // ── Signed in ───────────────────────────────────────────────────────────────
+  return (
+    <div className="border border-white/10 rounded-lg px-3 py-2.5 bg-white/5">
+      <div className="flex items-center gap-2 mb-2">
+        <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+        <span className="text-xs font-medium text-white/80 flex-1">Cloud Sync</span>
+        {status === "saved" && (
+          <span className="text-[9px] text-emerald-400 font-medium">● Saved</span>
+        )}
+        {status === "saving" && (
+          <span className="text-[9px] text-white/40 font-medium flex items-center gap-1">
+            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+            Saving…
+          </span>
+        )}
+        {lastSaved && status === "idle" && (
+          <span className="text-[9px] text-white/30">
+            {lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 text-[11px] h-7 bg-white/8 text-white/70 border-white/15 hover:bg-white/15 hover:text-white"
+          onClick={() => doSave(false)}
+          disabled={isBusy}
+        >
+          {status === "saving" ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <CloudUpload className="w-3 h-3" />
+          )}
+          Save
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 text-[11px] h-7 bg-white/8 text-white/70 border-white/15 hover:bg-white/15 hover:text-white"
+          onClick={handleLoad}
+          disabled={isBusy || !cloudPlanId}
+        >
+          {status === "loading" ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <CloudDownload className="w-3 h-3" />
+          )}
+          Load
+        </Button>
+      </div>
+
+      <p className="text-[9px] text-white/25 mt-1.5 leading-relaxed">
+        Auto-saves 3s after each change.
+      </p>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import AlternativeIncome from "./pages/AlternativeIncome";
 import OneTimeEvents from "./pages/OneTimeEvents";
 import Scenarios from "./pages/Scenarios";
 import Distribution from "./pages/Distribution";
+import Billing from "./pages/Billing";
 import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -36,7 +37,7 @@ import { useHashLocation } from "wouter/use-hash-location";
 function PlannerApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => isFirstVisit());
-
+  // make sure to consider if you need authentication for certain routes
   return (
     <div className="flex h-[100dvh] bg-[#FAFAF8] overflow-hidden">
       {showOnboarding && <OnboardingModal onDismiss={() => setShowOnboarding(false)} />}
@@ -88,6 +89,7 @@ function PlannerApp() {
               <Route path="/scenarios" component={Scenarios} />
               <Route path="/distribution" component={Distribution} />
               <Route path="/projections" component={Projections} />
+              <Route path="/billing" component={Billing} />
               <Route component={NotFound} />
             </Switch>
           </div>
