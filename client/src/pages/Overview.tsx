@@ -247,9 +247,14 @@ export default function Overview() {
   const hasPartner = !!(inputs.partnerEnabled);
   const householdMultiplier = hasPartner ? 2 : 1;
 
-  const total401k = (inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0);
+  // Derive contributions directly from the accounts array (same source the projection engine uses)
+  // to avoid reading stale top-level DEFAULT_INPUTS fields.
+  const aggContribs = aggregateAccounts(inputs.accounts ?? []);
+  const total401k = aggContribs.k401Contribution + aggContribs.roth401kContribution;
+  const totalIRA  = aggContribs.rothIRAContribution + aggContribs.iraContribution;
+
   const household401kLimit = IRS_401K_LIMIT_PER_PERSON * householdMultiplier;
-  if (total401k > household401kLimit) {
+  if (total401k > 0 && total401k > household401kLimit) {
     warnings.push({
       level: "warn",
       message: hasPartner
@@ -258,9 +263,8 @@ export default function Overview() {
     });
   }
 
-  const totalIRA = (inputs.rothIRAContribution ?? 0) + (inputs.iraContribution ?? 0);
   const householdIRALimit = IRS_IRA_LIMIT_PER_PERSON * householdMultiplier;
-  if (totalIRA > householdIRALimit) {
+  if (totalIRA > 0 && totalIRA > householdIRALimit) {
     warnings.push({
       level: "warn",
       message: hasPartner
