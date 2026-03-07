@@ -171,7 +171,11 @@ export interface RetirementInputs {
   currentRothIRA: number;
   currentIRA: number;
 
-  // Home
+  // Housing mode
+  housingMode: "own" | "rent";    // "own" = mortgage fields apply; "rent" = monthlyRent added to expenses
+  monthlyRent: number;             // monthly rent amount (only used when housingMode = "rent")
+
+  // Home (used when housingMode = "own")
   homeValue: number;
   homeLoan: number;
   mortgageRate: number; // e.g. 0.03
@@ -179,7 +183,7 @@ export interface RetirementInputs {
   mortgageElapsedMonths: number; // months already paid (e.g. 6)
   extraMortgageMonthly: number;
 
-  // Fixed annual home costs
+  // Fixed annual home costs (used when housingMode = "own")
   propertyTaxesYear: number;
   homeInsuranceYear: number;
 
@@ -567,10 +571,20 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // ── Annual Expenses ──
     // All expense components use nextInflFactor (current year's inflation factor)
     // so every cost grows consistently with inflation year over year.
+    const housingMode = resolvedInputs.housingMode ?? "own";
+    const monthlyRent = resolvedInputs.monthlyRent ?? 0;
+    // Rent inflates with inflation; mortgage is fixed payment (already computed above)
+    const annualRentCost = housingMode === "rent" ? monthlyRent * 12 * nextInflFactor : 0;
+    // When renting, skip mortgage payment and property taxes/insurance (landlord's cost)
+    const annualOwnerCosts = housingMode === "own"
+      ? annualMortgagePmt +
+        (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
+        (propertyTaxesYear + homeInsuranceYear) * nextInflFactor
+      : 0;
     const annualExpenses =
-      annualMortgagePmt +
-      (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) +
-      (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor +
+      annualOwnerCosts +
+      annualRentCost +
+      monthlyBudget * 12 * nextInflFactor +
       addlAnnualMortgage + addlAnnualFixedCosts;
 
     // ── Net annual need (expenses minus SS income and active alternative income when retired) ──
@@ -1014,7 +1028,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
 // All amounts are monthly. Adjust to match your actual situation.
 export const DEFAULT_BUDGET_ITEMS: BudgetItem[] = [
   // Housing
-  { label: "Rent",                       amounts: [2800] },  // CA avg 2-BR rent (LAO 2025: $2,680 statewide; ~$2,800 suburban)
+  // Note: Rent/mortgage is handled by the Housing section (Own vs. Rent toggle), not here.
   { label: "Electricity",               amounts: [200] },   // CA avg ~60% above national avg (PG&E/SCE 2025)
   { label: "Water",                     amounts: [80] },
   { label: "Garbage",                   amounts: [50] },
@@ -1109,6 +1123,9 @@ export const DEFAULT_INPUTS: RetirementInputs = {
   currentRoth401k: 75000,
   currentRothIRA: 50000,
   currentIRA: 0,
+
+  housingMode: "rent" as const,
+  monthlyRent: 2800,
 
   homeValue: 0,
   homeLoan: 0,
@@ -1328,9 +1345,12 @@ export function runProjectionWithReturns(
       }
       currentHomeLoan = bal;
     }
-    const annualPropertyCosts = (propertyTaxesYear + homeInsuranceYear) * nextInflFactor;
+    const mcHousingMode = resolvedInputs.housingMode ?? "own";
+    const mcMonthlyRent = resolvedInputs.monthlyRent ?? 0;
+    const annualRentCostMC = mcHousingMode === "rent" ? mcMonthlyRent * 12 * nextInflFactor : 0;
+    const annualPropertyCosts = mcHousingMode === "own" ? (propertyTaxesYear + homeInsuranceYear) * nextInflFactor : 0;
     const mcBudgetExpenses = monthlyBudget * 12 * nextInflFactor;
-    const annualExpenses = mcBudgetExpenses;
+    const annualExpenses = mcBudgetExpenses + annualRentCostMC;
 
     // Dynamic tax for Monte Carlo: compute per-year rate from actual income
     const mcTaxableWages = !retired ? Math.max(0, baseIncome + mcPartnerBaseIncome) : 0;
@@ -1356,10 +1376,11 @@ export function runProjectionWithReturns(
       // Pre-retirement: savings flow into investments after all costs and contributions
       const mcTotalContributions =
         (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor;
-      const mcHomeExpenses = annualPropertyCosts + mcBudgetExpenses;
+      const mcOwnerCosts = mcHousingMode === "own"
+        ? annualMortgagePmtMC + (mcRemainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0) + annualPropertyCosts
+        : 0;
+      const mcHomeExpenses = mcOwnerCosts + annualRentCostMC + mcBudgetExpenses;
       const mcSavings = annualNetIncome
-        - annualMortgagePmtMC
-        - (mcRemainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0)
         - mcHomeExpenses
         - mcTotalContributions;
       investments = prevInvestments * (1 + growthRate) + mcSavings + oneTimeToInvestments;
@@ -1368,7 +1389,8 @@ export function runProjectionWithReturns(
       rothIRA = prevRothIRA * (1 + growthRate) + rothIRAContribution * nextInflFactor;
       ira = prevIRA * (1 + growthRate) + iraContribution * nextInflFactor;
     } else {
-      const totalNeed = Math.max(0, netAnnualNeed) + annualMortgagePmtMC + annualPropertyCosts;
+      const mcRetiredOwnerCosts = mcHousingMode === "own" ? annualMortgagePmtMC + annualPropertyCosts : 0;
+      const totalNeed = Math.max(0, netAnnualNeed) + mcRetiredOwnerCosts;
 
       // RMD logic (mirrors main projection engine)
       const MC_RMD_AGE = 73;

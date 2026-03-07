@@ -455,6 +455,66 @@ export default function Accounts() {
         )}
       </SectionCard>
 
+      {/* Housing Section */}
+      <SectionCard title="Housing" description="Choose whether you rent or own. Rent inflates with inflation each year. Mortgage details apply when owning.">
+        {/* Own / Rent toggle */}
+        <div className="flex gap-2 mb-5">
+          <button
+            onClick={() => updateInput("housingMode", "rent")}
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold border transition-all ${
+              (inputs.housingMode ?? "own") === "rent"
+                ? "bg-[#1B4332] text-white border-[#1B4332] shadow-sm"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            Renting
+          </button>
+          <button
+            onClick={() => updateInput("housingMode", "own")}
+            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-semibold border transition-all ${
+              (inputs.housingMode ?? "own") === "own"
+                ? "bg-[#1B4332] text-white border-[#1B4332] shadow-sm"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            Owning
+          </button>
+        </div>
+
+        {(inputs.housingMode ?? "own") === "rent" ? (
+          <div className="space-y-4">
+            <CurrencyInput
+              label="Monthly Rent"
+              value={inputs.monthlyRent ?? 2800}
+              onChange={(v) => updateInput("monthlyRent", v)}
+            />
+            <p className="text-xs text-slate-500">
+              Rent inflates at your assumed inflation rate ({((inputs.inflationRate ?? 0.03) * 100).toFixed(1)}%/yr).
+              Property taxes and homeowner's insurance are not applied when renting.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CurrencyInput label="Home Value" value={inputs.homeValue} onChange={(v) => updateInput("homeValue", v)} />
+              <CurrencyInput label="Remaining Loan Balance" value={inputs.homeLoan} onChange={(v) => updateInput("homeLoan", v)} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <PercentInput label="Mortgage Rate" value={inputs.mortgageRate} onChange={(v) => updateInput("mortgageRate", v)} />
+              <NumberInput label="Original Term" value={inputs.mortgageTotalYears} onChange={(v) => updateInput("mortgageTotalYears", v)} suffix="yrs" integer />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <NumberInput label="Months Already Paid" value={inputs.mortgageElapsedMonths} onChange={(v) => updateInput("mortgageElapsedMonths", v)} suffix="mo" integer />
+              <CurrencyInput label="Extra Monthly Payment" value={inputs.extraMortgageMonthly} onChange={(v) => updateInput("extraMortgageMonthly", v)} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <CurrencyInput label="Property Taxes (annual)" value={inputs.propertyTaxesYear} onChange={(v) => updateInput("propertyTaxesYear", v)} />
+              <CurrencyInput label="Home Insurance (annual)" value={inputs.homeInsuranceYear} onChange={(v) => updateInput("homeInsuranceYear", v)} />
+            </div>
+          </div>
+        )}
+      </SectionCard>
+
       {/* Contribution Limits Reference */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-5">
         <div>
