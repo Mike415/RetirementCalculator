@@ -239,28 +239,33 @@ export default function Overview() {
   if (inputs.projectionEndAge <= inputs.retirementAge) {
     warnings.push({ level: "error", message: "Projection end age must be greater than retirement age." });
   }
-  // IRS 2026 limits (per person — each spouse has their own independent limit)
-  const IRS_401K_LIMIT = 24500;
-  const IRS_IRA_LIMIT = 7500;
-  const isMFJ = inputs.partnerEnabled && inputs.filingStatus === "married_joint";
+  // IRS 2026 limits — each person has their own independent limit.
+  // Contributions are aggregated across all accounts (including both spouses' accounts),
+  // so when a partner is enabled the household limit is doubled.
+  const IRS_401K_LIMIT_PER_PERSON = 24500;
+  const IRS_IRA_LIMIT_PER_PERSON = 7500;
+  const hasPartner = !!(inputs.partnerEnabled);
+  const householdMultiplier = hasPartner ? 2 : 1;
 
-  // 401(k): validate your contributions alone (partner has their own separate plan/limit)
-  const your401k = (inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0);
-  if (your401k > IRS_401K_LIMIT) {
+  const total401k = (inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0);
+  const household401kLimit = IRS_401K_LIMIT_PER_PERSON * householdMultiplier;
+  if (total401k > household401kLimit) {
     warnings.push({
       level: "warn",
-      message: `Your 401(k) contributions ($${your401k.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_401K_LIMIT.toLocaleString()} per person. Catch-up contributions are added automatically at age 50+.`,
+      message: hasPartner
+        ? `Combined 401(k) contributions ($${total401k.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_401K_LIMIT_PER_PERSON.toLocaleString()} per person ($${household401kLimit.toLocaleString()} combined). Catch-up contributions are added automatically at age 50+.`
+        : `Your 401(k) contributions ($${total401k.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_401K_LIMIT_PER_PERSON.toLocaleString()}. Catch-up contributions are added automatically at age 50+.`,
     });
   }
-  // Partner 401(k) — only if partner is enabled and has their own contributions tracked
-  // (partner contributions are not separately tracked yet, so no warning needed)
 
-  // IRA: each spouse has their own $7,500 limit (MFJ allows spousal IRA if one spouse has no income)
-  const yourIRA = (inputs.rothIRAContribution ?? 0) + (inputs.iraContribution ?? 0);
-  if (yourIRA > IRS_IRA_LIMIT) {
+  const totalIRA = (inputs.rothIRAContribution ?? 0) + (inputs.iraContribution ?? 0);
+  const householdIRALimit = IRS_IRA_LIMIT_PER_PERSON * householdMultiplier;
+  if (totalIRA > householdIRALimit) {
     warnings.push({
       level: "warn",
-      message: `Your IRA contributions ($${yourIRA.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_IRA_LIMIT.toLocaleString()} per person. Catch-up adds $1,000/yr at age 50+.${isMFJ ? " Your spouse has a separate $7,500 limit." : ""}`,
+      message: hasPartner
+        ? `Combined IRA contributions ($${totalIRA.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_IRA_LIMIT_PER_PERSON.toLocaleString()} per person ($${householdIRALimit.toLocaleString()} combined). Catch-up adds $1,000/yr per person at age 50+.`
+        : `Your IRA contributions ($${totalIRA.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_IRA_LIMIT_PER_PERSON.toLocaleString()}. Catch-up adds $1,000/yr at age 50+.`,
     });
   }
   if (!survivesFull && brokeRow) {
