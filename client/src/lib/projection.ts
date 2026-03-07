@@ -67,6 +67,9 @@ export interface Account {
   balance: number;                 // current balance
   growthRateOverride?: number;     // if set, overrides investmentGrowthRate for this account
   annualContribution?: number;     // annual contribution (pre-retirement only)
+  costBasisPercent?: number;       // fraction of balance that is cost basis (0–1). Only relevant for investment accounts.
+                                   // e.g. 0.60 means 60% is cost basis, 40% is unrealized gain.
+                                   // Defaults to 0.60 (conservative estimate for long-held diversified portfolio).
 }
 
 /** Map AccountType to the WithdrawalAccount key used in the projection engine */
@@ -95,15 +98,23 @@ export function aggregateAccounts(accounts: Account[]): {
   roth401kContribution: number;
   rothIRAContribution: number;
   iraContribution: number;
+  investmentCostBasisPercent: number;
 } {
   let currentCash = 0, currentInvestments = 0, current401k = 0;
   let currentRoth401k = 0, currentRothIRA = 0, currentIRA = 0;
   let k401Contribution = 0, roth401kContribution = 0, rothIRAContribution = 0, iraContribution = 0;
+  // Weighted average cost basis across all investment accounts
+  let investmentBalanceTotal = 0;
+  let investmentCostBasisWeighted = 0;
   for (const acct of accounts) {
     const contrib = acct.annualContribution ?? 0;
     switch (acct.type) {
       case "cash":       currentCash += acct.balance; break;
-      case "investment": currentInvestments += acct.balance; currentInvestments += 0; break;
+      case "investment":
+        currentInvestments += acct.balance;
+        investmentBalanceTotal += acct.balance;
+        investmentCostBasisWeighted += acct.balance * (acct.costBasisPercent ?? 0.60);
+        break;
       case "other":      currentInvestments += acct.balance; break;
       case "401k":       current401k += acct.balance; k401Contribution += contrib; break;
       case "roth401k":   currentRoth401k += acct.balance; roth401kContribution += contrib; break;
@@ -111,8 +122,11 @@ export function aggregateAccounts(accounts: Account[]): {
       case "ira":        currentIRA += acct.balance; iraContribution += contrib; break;
     }
   }
+  const investmentCostBasisPercent = investmentBalanceTotal > 0
+    ? investmentCostBasisWeighted / investmentBalanceTotal
+    : 0.60; // default: 60% cost basis (40% unrealized gain)
   return { currentCash, currentInvestments, current401k, currentRoth401k, currentRothIRA, currentIRA,
-           k401Contribution, roth401kContribution, rothIRAContribution, iraContribution };
+           k401Contribution, roth401kContribution, rothIRAContribution, iraContribution, investmentCostBasisPercent };
 }
 
 // Account identifiers used in withdrawal ordering
@@ -382,6 +396,9 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     budgetPeriods,
   } = resolvedInputs;
   const incomePhases = resolvedInputs.incomePhases ?? [];
+  // Cost basis percentage for the investment account — used for capital gains tax calculation.
+  // Derived from account-level costBasisPercent fields (weighted average) or defaults to 0.60.
+  const investmentCostBasisPct: number = (resolvedInputs as any).investmentCostBasisPercent ?? 0.60;
   const startYear = new Date().getFullYear();
   const rows: ProjectionRow[] = [];
 
@@ -738,7 +755,8 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // SS taxability: IRS provisional income test (simplified to 85% for high-income retirees)
     // Provisional income = AGI + 50% of SS. If > $44K (MFJ) / $34K (single), 85% is taxable.
     // We use the 85% rule for simplicity (conservative, correct for most retirees).
-    const provisionalIncome = taxable401kDraw + additionalPhaseIncome + conversionAmount + socialSecurityIncome * 0.5;
+    // IRS provisional income = AGI + 50% of SS. AGI in retirement includes all taxable draws.
+    const provisionalIncome = taxable401kDraw + drawAmounts.investments + additionalPhaseIncome + conversionAmount + socialSecurityIncome * 0.5;
     const ssTaxableThreshold = (filingStatus === "married_joint") ? 44000 : 34000;
     const ssTaxablePct = provisionalIncome > ssTaxableThreshold ? 0.85 : provisionalIncome > (ssTaxableThreshold * 0.727) ? 0.50 : 0;
     const taxableSSIncome = retired ? socialSecurityIncome * ssTaxablePct : 0;
@@ -755,7 +773,7 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     const marginalBracket = taxResult.federalMarginalRate;
     // Capital gains tax on investment draws (retirement only)
     // Investment draws are assumed to be ~60% gains (long-term) for a diversified portfolio
-    const investmentGains = retired ? drawAmounts.investments * 0.60 : 0;
+    const investmentGains = retired ? drawAmounts.investments * (1 - investmentCostBasisPct) : 0;
     const capitalGainsTax = retired && investmentGains > 0
       ? calculateCapitalGainsTax(investmentGains, taxableIncome, filingStatus, yearsFromStart, inflationRate)
       : 0;
@@ -814,20 +832,49 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // ── Cash ──
     const cash = Math.max(0, prevCash + oneTimeToCash - drawAmounts.cash);
 
+    // ── Catch-up contributions (SECURE 2.0) ──
+    // Age 50+: +$7,500/yr to 401k (traditional or Roth); +$1,000/yr to IRA
+    // Age 60-63: SECURE 2.0 "super catch-up" = $11,250 instead of $7,500 for 401k
+    // IRS adjusts these limits in ~$500 increments annually (not continuous compounding).
+    // We use a conservative 2% annual adjustment rate to approximate future limit increases.
+    const catchUpInflFactor = Math.pow(1.02, yearsFromStart);
+    const catchUp401k = catchUpEnabled && !retired && age >= 50
+      ? (age >= 60 && age <= 63 ? 11250 : 7500) * catchUpInflFactor
+      : 0;
+    const catchUpIRA = catchUpEnabled && !retired && age >= 50 ? 1000 * catchUpInflFactor : 0;
+
+    // ── Employer match ──
+    // Match = min(employee contribution, matchLimit% of salary) * matchPercent
+    // Employer match goes into traditional 401k regardless of employee contribution type
+    const totalEmployeeContrib = (k401Contribution + roth401kContribution) * nextInflFactor;
+    const matchableContrib = Math.min(totalEmployeeContrib, baseIncome * employerMatchLimit);
+    const employerMatch = !retired && employerMatchPercent > 0
+      ? matchableContrib * employerMatchPercent
+      : 0;
+
     // ── Investments ──
+    // Pre-retirement: after-tax income minus all fixed costs and retirement contributions
+    // flows into the taxable investment account. Contributions come from take-home pay
+    // (they reduce savings, not the investment balance directly).
     let investments: number;
     if (!retired) {
       const homeExpenses =
         (propertyTaxesYear + homeInsuranceYear + monthlyBudget * 12) * nextInflFactor;
+      const totalContributions =
+        (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
+        catchUp401k + catchUpIRA + employerMatch;
+      // After-tax take-home: income taxed, then contributions deducted (they go to retirement accounts)
+      const afterTaxIncome = income * (1 - yearEffectiveTaxRate);
+      const savingsToInvestments = afterTaxIncome
+        - annualMortgagePmt
+        - (remainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0)
+        - homeExpenses
+        - addlAnnualMortgage
+        - addlAnnualFixedCosts
+        - totalContributions;
       investments =
         prevInvestments * (1 + investmentGrowthRate) +
-        (income * (1 - yearEffectiveTaxRate)
-          - annualMortgagePmt
-          - extraMortgageMonthly * 12
-          - homeExpenses
-          - addlAnnualMortgage
-          - addlAnnualFixedCosts) -
-        (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor +
+        savingsToInvestments +
         oneTimeToInvestments;
     } else {
     // RMD overflow (excess over spending need) is taxed at the year's dynamic rate;
@@ -838,23 +885,6 @@ export function runProjection(inputs: RetirementInputs): ProjectionRow[] {
     // ── Roth Conversion (pre-RMD ladder) ──
     // conversionActive and conversionAmount are computed above (before tax calc)
     // so they can be included in taxable income. Account adjustments are below.
-
-    // ── Catch-up contributions (SECURE 2.0) ──
-    // Age 50+: +$7,500/yr to 401k (traditional or Roth); +$1,000/yr to IRA
-    // Age 60-63: SECURE 2.0 "super catch-up" = $11,250 instead of $7,500 for 401k
-    const catchUp401k = catchUpEnabled && !retired && age >= 50
-      ? (age >= 60 && age <= 63 ? 11250 : 7500) * nextInflFactor
-      : 0;
-    const catchUpIRA = catchUpEnabled && !retired && age >= 50 ? 1000 * nextInflFactor : 0;
-
-    // ── Employer match ──
-    // Match = min(employee contribution, matchLimit% of salary) * matchPercent
-    // Employer match goes into traditional 401k regardless of employee contribution type
-    const totalEmployeeContrib = (k401Contribution + roth401kContribution) * nextInflFactor;
-    const matchableContrib = Math.min(totalEmployeeContrib, baseIncome * employerMatchLimit);
-    const employerMatch = !retired && employerMatchPercent > 0
-      ? matchableContrib * employerMatchPercent
-      : 0;
 
     // ── 401K ──
     // For optimizer mode, conversionFrom401k is the per-source amount.
@@ -1231,30 +1261,42 @@ export function runProjectionWithReturns(
       .filter((e) => e.age === age && e.account === "investments")
       .reduce((sum, e) => sum + e.amount, 0);
 
-    const annualExpenses = monthlyBudget * 12 * inflFactor;
+    // Mortgage (Monte Carlo) — month-by-month amortization matching the deterministic engine
+    const mcRemainingMortgageMonths = Math.max(
+      0,
+      totalMortgageMonths - yearsFromStart * 12 - mortgageElapsedMonths
+    );
+    const mcMonthlyMortgagePmt =
+      mcRemainingMortgageMonths > 0 && prevHomeLoan > 0
+        ? pmt(mortgageRate, mcRemainingMortgageMonths, prevHomeLoan)
+        : 0;
+    const annualMortgagePmtMC = mcMonthlyMortgagePmt * 12;
+    const currentHomeValue = prevHomeValue * (1 + inflationRate);
+    // Month-by-month loan amortization
+    let currentHomeLoan = prevHomeLoan;
+    if (mcRemainingMortgageMonths > 0 && prevHomeLoan > 0) {
+      const monthlyR = mortgageRate / 12;
+      let bal = prevHomeLoan;
+      for (let m = 0; m < 12; m++) {
+        const interest = bal * monthlyR;
+        const principal = mcMonthlyMortgagePmt - interest;
+        bal = Math.max(0, bal - principal - extraMortgageMonthly);
+        if (bal === 0) break;
+      }
+      currentHomeLoan = bal;
+    }
+    const annualPropertyCosts = (propertyTaxesYear + homeInsuranceYear) * nextInflFactor;
+    const mcBudgetExpenses = monthlyBudget * 12 * nextInflFactor;
+    const annualExpenses = mcBudgetExpenses;
+
     // Dynamic tax for Monte Carlo: compute per-year rate from actual income
-    const mcTaxableWages = !retired ? (baseIncome + mcPartnerBaseIncome) : 0;
+    const mcTaxableWages = !retired ? Math.max(0, baseIncome + mcPartnerBaseIncome) : 0;
     const mcTaxableAlt = additionalPhaseIncome;
     const mcTaxableIncome = mcTaxableWages + mcTaxableAlt;
-    const mcTaxResult = calculateTax(mcTaxableIncome, mcFilingStatus, mcStateCode, mcIncludeFica && !retired);
+    const mcTaxResult = calculateTax(mcTaxableIncome, mcFilingStatus, mcStateCode, mcIncludeFica && !retired, yearsFromStart, inflationRate);
     const mcYearEffectiveRate = mcTaxResult.totalEffectiveRate;
     const annualNetIncome = effectiveIncome * (1 - mcYearEffectiveRate);
     const netAnnualNeed = annualExpenses - annualNetIncome - socialSecurityIncome;
-
-    // Mortgage
-    let monthlyMortgagePayment = 0;
-    const elapsedMonths = mortgageElapsedMonths + yearsFromStart * 12;
-    if (prevHomeLoan > 0 && elapsedMonths < totalMortgageMonths) {
-      const r = mortgageRate / 12;
-      const n = totalMortgageMonths;
-      monthlyMortgagePayment = r === 0 ? homeLoan / n : (homeLoan * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-    }
-    const annualMortgage = (monthlyMortgagePayment + extraMortgageMonthly) * 12;
-    const currentHomeValue = prevHomeValue * (1 + inflationRate);
-    const interestPaid = prevHomeLoan * mortgageRate;
-    const principalPaid = Math.min(annualMortgage - interestPaid, prevHomeLoan);
-    const currentHomeLoan = Math.max(0, prevHomeLoan - principalPaid);
-    const annualPropertyCosts = (propertyTaxesYear + homeInsuranceYear) * inflFactor;
 
     // Cash
     let cash = prevCash;
@@ -1268,13 +1310,22 @@ export function runProjectionWithReturns(
     let drawFromInvestments = false, drawFrom401k = false, drawFromRoth401k = false, drawFromRothIRA = false, drawFromIRA = false;
 
     if (!retired) {
-      investments = prevInvestments * (1 + growthRate) + oneTimeToInvestments;
+      // Pre-retirement: savings flow into investments after all costs and contributions
+      const mcTotalContributions =
+        (k401Contribution + roth401kContribution + rothIRAContribution + iraContribution) * nextInflFactor;
+      const mcHomeExpenses = annualPropertyCosts + mcBudgetExpenses;
+      const mcSavings = annualNetIncome
+        - annualMortgagePmtMC
+        - (mcRemainingMortgageMonths > 0 ? extraMortgageMonthly * 12 : 0)
+        - mcHomeExpenses
+        - mcTotalContributions;
+      investments = prevInvestments * (1 + growthRate) + mcSavings + oneTimeToInvestments;
       k401 = prev401k * (1 + growthRate) + k401Contribution * nextInflFactor;
       roth401k = prevRoth401k * (1 + growthRate) + roth401kContribution * nextInflFactor;
       rothIRA = prevRothIRA * (1 + growthRate) + rothIRAContribution * nextInflFactor;
       ira = prevIRA * (1 + growthRate) + iraContribution * nextInflFactor;
     } else {
-      const totalNeed = Math.max(0, netAnnualNeed) + annualMortgage + annualPropertyCosts;
+      const totalNeed = Math.max(0, netAnnualNeed) + annualMortgagePmtMC + annualPropertyCosts;
 
       // RMD logic (mirrors main projection engine)
       const MC_RMD_AGE = 73;

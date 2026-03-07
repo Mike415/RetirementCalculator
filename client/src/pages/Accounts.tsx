@@ -178,6 +178,26 @@ function AccountRow({
         ) : (
           <div className="flex-1" />
         )}
+        {/* Cost basis % — only for investment accounts */}
+        {account.type === "investment" && (
+          <div className="flex items-center gap-1 flex-shrink-0" title="Cost basis: % of balance that is original cost (not gains). Used for capital gains tax calculation.">
+            <div className="relative w-[64px]">
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={Math.round((account.costBasisPercent ?? 0.60) * 100)}
+                onChange={(e) => {
+                  const parsed = parseFloat(e.target.value);
+                  if (!isNaN(parsed)) onUpdate({ ...account, costBasisPercent: Math.min(1, Math.max(0, parsed / 100)) });
+                }}
+                className="h-8 text-xs pr-6 pl-2 w-full [font-size:16px]"
+                min={0} max={100} step={5}
+                placeholder="60"
+              />
+              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none">%cb</span>
+            </div>
+          </div>
+        )}
         {/* Growth rate */}
         <div className="flex items-center gap-1 flex-shrink-0">
           {hasOverride ? (
