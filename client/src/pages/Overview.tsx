@@ -239,15 +239,29 @@ export default function Overview() {
   if (inputs.projectionEndAge <= inputs.retirementAge) {
     warnings.push({ level: "error", message: "Projection end age must be greater than retirement age." });
   }
-  const totalContribs = (inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0);
-  const IRS_401K_LIMIT_2024 = 23000;
-  if (totalContribs > IRS_401K_LIMIT_2024) {
-    warnings.push({ level: "warn", message: `Total 401(k) contributions ($${totalContribs.toLocaleString()}) exceed the 2024 IRS limit of $${IRS_401K_LIMIT_2024.toLocaleString()}. Catch-up contributions are added automatically at age 50+.` });
+  // IRS 2026 limits (per person — each spouse has their own independent limit)
+  const IRS_401K_LIMIT = 24500;
+  const IRS_IRA_LIMIT = 7500;
+  const isMFJ = inputs.partnerEnabled && inputs.filingStatus === "married_joint";
+
+  // 401(k): validate your contributions alone (partner has their own separate plan/limit)
+  const your401k = (inputs.k401Contribution ?? 0) + (inputs.roth401kContribution ?? 0);
+  if (your401k > IRS_401K_LIMIT) {
+    warnings.push({
+      level: "warn",
+      message: `Your 401(k) contributions ($${your401k.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_401K_LIMIT.toLocaleString()} per person. Catch-up contributions are added automatically at age 50+.`,
+    });
   }
-  const totalIRAContribs = (inputs.rothIRAContribution ?? 0) + (inputs.iraContribution ?? 0);
-  const IRS_IRA_LIMIT_2024 = 7000;
-  if (totalIRAContribs > IRS_IRA_LIMIT_2024) {
-    warnings.push({ level: "warn", message: `Total IRA contributions ($${totalIRAContribs.toLocaleString()}) exceed the 2024 IRS limit of $${IRS_IRA_LIMIT_2024.toLocaleString()}. Catch-up adds $1,000/yr at age 50+.` });
+  // Partner 401(k) — only if partner is enabled and has their own contributions tracked
+  // (partner contributions are not separately tracked yet, so no warning needed)
+
+  // IRA: each spouse has their own $7,500 limit (MFJ allows spousal IRA if one spouse has no income)
+  const yourIRA = (inputs.rothIRAContribution ?? 0) + (inputs.iraContribution ?? 0);
+  if (yourIRA > IRS_IRA_LIMIT) {
+    warnings.push({
+      level: "warn",
+      message: `Your IRA contributions ($${yourIRA.toLocaleString()}) exceed the 2026 IRS limit of $${IRS_IRA_LIMIT.toLocaleString()} per person. Catch-up adds $1,000/yr at age 50+.${isMFJ ? " Your spouse has a separate $7,500 limit." : ""}`,
+    });
   }
   if (!survivesFull && brokeRow) {
     warnings.push({ level: "error", message: `Portfolio runs out at age ${brokeRow.age} (${brokeRow.year}). Consider reducing expenses, delaying retirement, or increasing contributions.` });
