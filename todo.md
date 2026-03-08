@@ -66,3 +66,4 @@
 - [x] Sidebar: auto-open dropdown on first visit for signed-out users
 - [x] Sidebar: show cloud save status indicator in collapsed row when signed in
 - [x] Sidebar: remove Billing & Plans nav item during beta
+- [x] Create new favicon with "PR" initials and upward trend arrow
