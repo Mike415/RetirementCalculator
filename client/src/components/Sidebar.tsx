@@ -37,7 +37,7 @@ import {
   TrendingUp,
   Upload,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 
@@ -95,37 +95,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const [location] = useLocation();
   const [confirming, setConfirming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isSignedIn, isLoaded, user } = useUser();
+  const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
-
-  // Dropdown state
-  const hasSeenDropdown = useRef(
-    typeof localStorage !== "undefined" && !!localStorage.getItem("rp_seen_dropdown")
-  );
-  const [_dropdownOpen, _setDropdownOpen] = useState(() => {
-    if (typeof localStorage === "undefined") return false;
-    return !localStorage.getItem("rp_seen_dropdown");
-  });
-
-  const _toggleDropdown = () => {
-    _setDropdownOpen((o: boolean) => {
-      const next = !o;
-      if (!hasSeenDropdown.current) {
-        hasSeenDropdown.current = true;
-        try { localStorage.setItem("rp_seen_dropdown", "1"); } catch {}
-      }
-      return next;
-    });
-  };
-
-  // Close auto-opened dropdown once signed in
-  useEffect(() => {
-    if (isLoaded && isSignedIn && !hasSeenDropdown.current) {
-      hasSeenDropdown.current = true;
-      try { localStorage.setItem("rp_seen_dropdown", "1"); } catch {}
-      _setDropdownOpen(false);
-    }
-  }, [isLoaded, isSignedIn]);
 
   const handleReset = () => {
     if (!confirming) {
@@ -177,7 +148,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
             alt="Project Retire logo"
             className="w-12 h-12 rounded-xl flex-shrink-0 object-cover"
           />
-          <h1 className="font-bold text-sm leading-tight tracking-wide text-white">
+          <h1 className="font-bold text-base leading-tight tracking-wide text-white">
             Project Retire
           </h1>
         </Link>
