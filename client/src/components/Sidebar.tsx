@@ -263,14 +263,9 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           </span>
         </div>
 
-        <div className="px-1 pt-1 space-y-1.5">
-          <p className="text-[10px] text-white/30 leading-relaxed">
-            Values auto-saved locally in your browser.
-          </p>
-          <p className="text-[10px] text-amber-400/70 leading-relaxed">
-            Not financial advice. Projections are estimates for educational purposes only. Consult a licensed financial advisor.
-          </p>
-        </div>
+        <p className="px-1 text-[10px] text-white/30 leading-relaxed">
+          Values auto-saved locally in your browser.
+        </p>
       </div>
     </aside>
   );

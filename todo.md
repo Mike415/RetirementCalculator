@@ -56,3 +56,4 @@
 
 ## Sidebar UX
 - [x] Merge Import and Export into a single compact row with two icon buttons
+- [x] Move "Not financial advice" disclaimer from sidebar to Overview page

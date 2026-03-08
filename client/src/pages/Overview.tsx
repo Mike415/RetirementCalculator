@@ -568,10 +568,13 @@ export default function Overview() {
         </div>
       </div>
 
-      <p className="text-[11px] text-slate-400 text-center pb-4">
-        All projections are estimates based on your inputs and assumptions. Past performance does not guarantee future results.
-        Consult a qualified financial advisor before making retirement decisions.
-      </p>
+      {/* Disclaimer */}
+      <div className="mx-2 mb-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 flex gap-3 items-start">
+        <span className="text-amber-500 text-base leading-none mt-0.5">⚠</span>
+        <p className="text-[11px] text-amber-800 leading-relaxed">
+          <span className="font-semibold">Not financial advice.</span> Projections are estimates for educational and planning purposes only. Results are based on your inputs and assumptions — they do not account for all real-world variables. Past performance does not guarantee future results. Consult a licensed financial advisor before making any investment or retirement decisions.
+        </p>
+      </div>
     </div>
   );
 }
