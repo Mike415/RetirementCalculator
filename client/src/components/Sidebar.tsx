@@ -19,7 +19,6 @@ import {
   BookOpen,
   Briefcase,
   CalendarClock,
-  ChevronDown,
   DollarSign,
   Download,
   FolderOpen,
@@ -103,13 +102,13 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const hasSeenDropdown = useRef(
     typeof localStorage !== "undefined" && !!localStorage.getItem("rp_seen_dropdown")
   );
-  const [dropdownOpen, setDropdownOpen] = useState(() => {
+  const [_dropdownOpen, _setDropdownOpen] = useState(() => {
     if (typeof localStorage === "undefined") return false;
     return !localStorage.getItem("rp_seen_dropdown");
   });
 
-  const toggleDropdown = () => {
-    setDropdownOpen((o) => {
+  const _toggleDropdown = () => {
+    _setDropdownOpen((o: boolean) => {
       const next = !o;
       if (!hasSeenDropdown.current) {
         hasSeenDropdown.current = true;
@@ -124,7 +123,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
     if (isLoaded && isSignedIn && !hasSeenDropdown.current) {
       hasSeenDropdown.current = true;
       try { localStorage.setItem("rp_seen_dropdown", "1"); } catch {}
-      setDropdownOpen(false);
+      _setDropdownOpen(false);
     }
   }, [isLoaded, isSignedIn]);
 
@@ -187,124 +186,60 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       {/* ── User strip ────────────────────────────────────────────────────── */}
       <div className="border-b border-white/10">
         {isSignedIn && user ? (
-          <>
-            {/* Profile row */}
-            <button
-              onClick={toggleDropdown}
-              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
-            >
-              <span onClick={(e) => e.stopPropagation()}>
-                <UserButton
-                  appearance={{
-                    elements: {
-                      avatarBox: "w-7 h-7",
-                      userButtonPopoverCard: "shadow-xl",
-                    },
-                  }}
-                />
-              </span>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-xs font-medium text-white/90 truncate">
-                  {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
-                </p>
-                {/* Active plan name + sync status dot */}
-                <p className="text-[9px] flex items-center gap-1 mt-0.5">
-                  {syncStatus === "saving" ? (
-                    <>
-                      <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
-                      <span className="text-amber-400/80">Saving…</span>
-                    </>
-                  ) : syncStatus === "saved" ? (
-                    <>
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      <span className="text-emerald-400">Saved</span>
-                    </>
-                  ) : syncStatus === "error" ? (
-                    <>
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400" />
-                      <span className="text-red-400">Sync error</span>
-                    </>
-                  ) : activePlanName ? (
-                    <>
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/60 flex-shrink-0" />
-                      <span className="text-white/40 truncate">{activePlanName}</span>
-                    </>
-                  ) : syncLabel ? (
-                    <span className="text-white/30 truncate">{syncLabel}</span>
-                  ) : (
-                    <span className="text-white/30">Auto-saving</span>
-                  )}
-                </p>
-              </div>
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 text-white/30 flex-shrink-0 transition-transform duration-200",
-                  dropdownOpen && "rotate-180"
-                )}
-              />
-            </button>
-
-            {/* Dropdown panel */}
-            <div
-              className={cn(
-                "overflow-hidden transition-all duration-200 ease-in-out",
-                dropdownOpen ? "max-h-72 opacity-100" : "max-h-0 opacity-0"
-              )}
-            >
-              <div className="px-4 pb-3 space-y-1 border-t border-white/8 pt-2">
-
-                {/* Sign out */}
-                <button
-                  onClick={() => signOut()}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/40 border border-white/10 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all duration-150"
-                >
-                  <LogOut className="w-3 h-3 flex-shrink-0" />
-                  Sign out
-                </button>
-
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Signed-out prompt row */}
-            <button
-              onClick={toggleDropdown}
-              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
-            >
-              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
-                <LogIn className="w-3.5 h-3.5 text-white/50" />
-              </div>
-              <p className="flex-1 text-left text-[11px] text-white/50 leading-snug">
-                Sign in to save your plan
+          /* Signed-in: Clerk UserButton + name + sync status */
+          <div className="flex items-center gap-3 px-4 py-3">
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-8 h-8",
+                  userButtonPopoverCard: "shadow-xl",
+                },
+              }}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-white/90 truncate">
+                {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
               </p>
-              <ChevronDown
-                className={cn(
-                  "w-3.5 h-3.5 text-white/30 flex-shrink-0 transition-transform duration-200",
-                  dropdownOpen && "rotate-180"
+              {/* Sync status */}
+              <p className="text-[9px] flex items-center gap-1 mt-0.5">
+                {syncStatus === "saving" ? (
+                  <>
+                    <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+                    <span className="text-amber-400/80">Saving…</span>
+                  </>
+                ) : syncStatus === "saved" ? (
+                  <>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-emerald-400">Saved</span>
+                  </>
+                ) : syncStatus === "error" ? (
+                  <>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400" />
+                    <span className="text-red-400">Sync error</span>
+                  </>
+                ) : activePlanName ? (
+                  <>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/60 flex-shrink-0" />
+                    <span className="text-white/40 truncate">{activePlanName}</span>
+                  </>
+                ) : syncLabel ? (
+                  <span className="text-white/30 truncate">{syncLabel}</span>
+                ) : (
+                  <span className="text-white/30">Auto-saving</span>
                 )}
-              />
-            </button>
-
-            {/* Signed-out dropdown */}
-            <div
-              className={cn(
-                "overflow-hidden transition-all duration-200 ease-in-out",
-                dropdownOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
-              )}
-            >
-              <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
-                <SignInButton mode="modal">
-                  <button className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D97706] text-white text-xs font-semibold hover:bg-[#B45309] transition-colors">
-                    <LogIn className="w-3.5 h-3.5" />
-                    Sign in to save your plan
-                  </button>
-                </SignInButton>
-
-                {/* Import/Export and Reset moved to Account section in nav */}
-              </div>
+              </p>
             </div>
-          </>
+          </div>
+        ) : (
+          /* Signed-out: simple Sign In button */
+          <div className="px-4 py-3">
+            <SignInButton mode="modal">
+              <button className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D97706] text-white text-xs font-semibold hover:bg-[#B45309] transition-colors">
+                <LogIn className="w-3.5 h-3.5" />
+                Sign in to save your plan
+              </button>
+            </SignInButton>
+          </div>
         )}
       </div>
 
