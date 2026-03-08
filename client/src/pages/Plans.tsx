@@ -84,6 +84,11 @@ function PlanCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync editName when plan.name changes (e.g. after a rename saves and the list re-fetches)
+  useEffect(() => {
+    if (!editing) setEditName(plan.name);
+  }, [plan.name, editing]);
+
   useEffect(() => {
     if (editing) inputRef.current?.select();
   }, [editing]);
@@ -330,6 +335,10 @@ export default function Plans() {
   const { cloudPlanId, doSave } = useCloudSyncContext();
   const [showNewModal, setShowNewModal] = useState(false);
   const [loadingPlanId, setLoadingPlanId] = useState<number | null>(null);
+  // Track which plan was most recently loaded by the user on this page.
+  // Falls back to cloudPlanId (the auto-save plan) when nothing has been
+  // explicitly loaded yet.
+  const [activePlanId, setActivePlanId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
   const plansQuery = trpc.plans.list.useQuery(undefined, {
@@ -378,6 +387,8 @@ export default function Plans() {
           }));
         } catch { /* ignore */ }
       }
+      // Mark this plan as the currently active one in the UI
+      setActivePlanId(plan.id);
       toast.success(`"${plan.name}" loaded!`);
     } catch {
       toast.error("Failed to load plan.");
@@ -560,7 +571,7 @@ export default function Plans() {
             <PlanCard
               key={plan.id}
               plan={plan}
-              isActive={plan.id === cloudPlanId}
+              isActive={plan.id === (activePlanId ?? cloudPlanId)}
               onLoad={() => handleLoad(plan)}
               onRename={(name) => handleRename(plan.id, name)}
               onDelete={() => handleDelete(plan.id)}

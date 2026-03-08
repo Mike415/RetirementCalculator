@@ -1,4 +1,4 @@
-import { ClerkProvider, useAuth, useSession } from "@clerk/react";
+import { ClerkProvider, useAuth, useClerk } from "@clerk/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { useEffect, useRef } from "react";
@@ -57,8 +57,14 @@ function TrpcTokenBridge() {
 }
 
 /**
- * SessionWatcher — detects when a Clerk session is newly established
- * (e.g. after modal sign-in) and performs a hard reload.
+ * SessionWatcher — uses Clerk's low-level addListener() API to detect
+ * when a session is newly established (e.g. after modal sign-in) and
+ * performs a hard page reload.
+ *
+ * Why addListener instead of useSession?
+ * addListener fires synchronously inside Clerk's internal state machine,
+ * before React's render cycle. This means it reliably catches the session
+ * change even when React's reconciler hasn't propagated the update yet.
  *
  * Why a hard reload?
  * Clerk v6 modal sign-in updates the internal session store, but React's
@@ -67,35 +73,45 @@ function TrpcTokenBridge() {
  * reload is the only guaranteed way to ensure every part of the app
  * starts fresh with the correct auth context.
  *
- * The 400ms delay gives Clerk time to finish writing the session cookie
+ * The 500ms delay gives Clerk time to finish writing the session cookie
  * before the page reloads, preventing a race where the reload fires
  * before the cookie is available.
  */
 function SessionWatcher() {
-  const { session, isLoaded } = useSession();
+  const clerk = useClerk();
   const prevSessionId = useRef<string | null | undefined>(undefined);
+  const reloadScheduled = useRef(false);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    // Wait until Clerk is loaded before subscribing
+    if (!clerk.loaded) return;
 
-    const currentId = session?.id ?? null;
+    const unsubscribe = clerk.addListener(({ session }) => {
+      const currentId = session?.id ?? null;
 
-    // First render: record the initial state without reloading.
-    if (prevSessionId.current === undefined) {
+      // First emission: record initial state, don't reload
+      if (prevSessionId.current === undefined) {
+        prevSessionId.current = currentId;
+        return;
+      }
+
+      // Session went from absent → present: user just signed in
+      if (!prevSessionId.current && currentId && !reloadScheduled.current) {
+        reloadScheduled.current = true;
+        console.log("[SessionWatcher] New session detected, reloading in 500ms...");
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+        return;
+      }
+
       prevSessionId.current = currentId;
-      return;
-    }
+    });
 
-    // Session went from absent → present: user just signed in via modal.
-    if (!prevSessionId.current && currentId) {
-      setTimeout(() => {
-        window.location.reload();
-      }, 400);
-      return;
-    }
-
-    prevSessionId.current = currentId;
-  }, [session?.id, isLoaded]);
+    return () => {
+      unsubscribe();
+    };
+  }, [clerk.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }

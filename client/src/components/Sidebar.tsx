@@ -368,8 +368,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
 
               {/* Account section: Export / Import / Reset / Sign Out action buttons */}
               {section.title === "Account" && (
-                <div className="mt-1 space-y-0.5">
-                  {/* Export — full-width row */}
+                <>
+                  {/* Export — same style as nav links */}
                   <button
                     onClick={exportPlan}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
@@ -379,7 +379,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                     <span className="flex-1 truncate">Export Plan</span>
                   </button>
 
-                  {/* Import — full-width row */}
+                  {/* Import — same style as nav links */}
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
@@ -417,7 +417,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                       <span className="flex-1 truncate">Sign out</span>
                     </button>
                   )}
-                </div>
+                </>
               )}
             </div>
           </div>
