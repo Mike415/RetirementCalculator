@@ -251,19 +251,9 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 dropdownOpen ? "max-h-72 opacity-100" : "max-h-0 opacity-0"
               )}
             >
-              <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
+              <div className="px-4 pb-3 space-y-1 border-t border-white/8 pt-2">
 
-                {/* Manage Plans button */}
-                <Link
-                  href="/plans"
-                  onClick={() => { setDropdownOpen(false); onNavigate?.(); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-[#D97706]/15 text-[#D97706] border border-[#D97706]/25 hover:bg-[#D97706]/25 transition-colors"
-                >
-                  <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                  Manage Plans
-                </Link>
-
-                {/* Sign out — moved here from bottom */}
+                {/* Sign out */}
                 <button
                   onClick={() => signOut()}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/40 border border-white/10 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all duration-150"

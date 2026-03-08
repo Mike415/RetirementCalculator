@@ -114,3 +114,4 @@
 - [x] Remove GitHub Pages deploy workflow (Railway is the live host)
 - [x] Sign-in refresh: rewrote SessionWatcher using useClerk().addListener() for reliable session change detection
 - [x] Fix Plans page: active plan indicator not working (Load button should become Active badge after loading)
+- [x] Remove Manage Plans from the username dropdown (it lives in Account section nav)
