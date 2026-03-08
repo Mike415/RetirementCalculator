@@ -23,11 +23,20 @@ const SCENARIOS_KEY = "retirement-planner-scenarios-v1";
 
 type SyncStatus = "idle" | "saving" | "loading" | "saved" | "error";
 
-export default function CloudSync() {
+interface CloudSyncProps {
+  onStatusChange?: (status: SyncStatus, lastSaved: Date | null) => void;
+}
+
+export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
   const { isSignedIn, isLoaded } = useUser();
   const { inputs, importFromObject } = usePlanner();
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Notify parent of status changes
+  useEffect(() => {
+    onStatusChange?.(status, lastSaved);
+  }, [status, lastSaved]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cloudPlanId, setCloudPlanId] = useState<number | null>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstLoad = useRef(true);

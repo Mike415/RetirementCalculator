@@ -35,7 +35,7 @@ import {
   TrendingUp,
   Upload,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
 
@@ -60,12 +60,8 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/distribution",  label: "Distribution Mgr",  icon: Layers     },
     ],
   },
-  {
-    title: "Account",
-    items: [
-      { path: "/billing", label: "Billing & Plans", icon: CreditCard },
-    ],
-  },
+  // Billing & Plans hidden during beta — re-add when Stripe is live
+  // { title: "Account", items: [{ path: "/billing", label: "Billing & Plans", icon: CreditCard }] },
   {
     title: "Inputs",
     items: [
@@ -90,9 +86,47 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const { resetToDefaults, exportPlan, importPlan, inputs } = usePlanner();
   const [location] = useLocation();
   const [confirming, setConfirming] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isSignedIn, user } = useUser();
+  const { isSignedIn, isLoaded, user } = useUser();
+
+  // Auto-open dropdown for signed-out users on first visit
+  const hasSeenDropdown = useRef(
+    typeof localStorage !== "undefined" && !!localStorage.getItem("rp_seen_dropdown")
+  );
+  const [dropdownOpen, setDropdownOpen] = useState(() => {
+    if (typeof localStorage === "undefined") return false;
+    return !localStorage.getItem("rp_seen_dropdown");
+  });
+
+  // Mark as seen when user explicitly interacts
+  const toggleDropdown = () => {
+    setDropdownOpen((o) => {
+      const next = !o;
+      if (!hasSeenDropdown.current) {
+        hasSeenDropdown.current = true;
+        try { localStorage.setItem("rp_seen_dropdown", "1"); } catch {}
+      }
+      return next;
+    });
+  };
+
+  // Once Clerk loads and user is signed in, close the auto-opened dropdown
+  useEffect(() => {
+    if (isLoaded && isSignedIn && !hasSeenDropdown.current) {
+      hasSeenDropdown.current = true;
+      try { localStorage.setItem("rp_seen_dropdown", "1"); } catch {}
+      setDropdownOpen(false);
+    }
+  }, [isLoaded, isSignedIn]);
+
+  // Cloud sync status for the collapsed row indicator
+  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "loading" | "saved" | "error">("idle");
+  const [syncLastSaved, setSyncLastSaved] = useState<Date | null>(null);
+
+  const handleSyncStatusChange = (status: "idle" | "saving" | "loading" | "saved" | "error", lastSaved: Date | null) => {
+    setSyncStatus(status);
+    setSyncLastSaved(lastSaved);
+  };
 
   const handleReset = () => {
     if (!confirming) {
@@ -144,7 +178,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           <>
             {/* Clickable profile row */}
             <button
-              onClick={() => setDropdownOpen((o) => !o)}
+              onClick={toggleDropdown}
               className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
             >
               {/* Stop click from bubbling to the button when Clerk popover opens */}
@@ -162,9 +196,26 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 <p className="text-xs font-medium text-white/90 truncate">
                   {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
                 </p>
-                <p className="text-[9px] text-white/40 truncate">
-                  {user.primaryEmailAddress?.emailAddress}
-                </p>
+                {/* Sync status indicator in collapsed row */}
+                {syncStatus === "saving" ? (
+                  <p className="text-[9px] text-white/40 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    Saving…
+                  </p>
+                ) : syncStatus === "saved" ? (
+                  <p className="text-[9px] text-emerald-400 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Saved
+                  </p>
+                ) : syncLastSaved ? (
+                  <p className="text-[9px] text-white/30 truncate">
+                    Saved {syncLastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                ) : (
+                  <p className="text-[9px] text-white/40 truncate">
+                    {user.primaryEmailAddress?.emailAddress}
+                  </p>
+                )}
               </div>
               <ChevronDown
                 className={cn(
@@ -183,7 +234,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
             >
               <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
                 {/* Cloud Sync */}
-                <CloudSync />
+                <CloudSync onStatusChange={handleSyncStatusChange} />
 
                 {/* Import / Export */}
                 <div className="grid grid-cols-2 gap-1.5">
@@ -225,7 +276,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           <>
             {/* Sign-in prompt row */}
             <button
-              onClick={() => setDropdownOpen((o) => !o)}
+              onClick={toggleDropdown}
               className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
             >
               <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">

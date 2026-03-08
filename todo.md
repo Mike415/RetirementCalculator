@@ -63,3 +63,6 @@
 - [x] Sidebar: collapsible dropdown under username for Import/Export/CloudSync
 - [x] Move Reset to Defaults into the username dropdown, remove from sidebar footer
 - [x] Overview: add X dismiss buttons to warning cards (persist dismissals in localStorage)
+- [x] Sidebar: auto-open dropdown on first visit for signed-out users
+- [x] Sidebar: show cloud save status indicator in collapsed row when signed in
+- [x] Sidebar: remove Billing & Plans nav item during beta
