@@ -704,6 +704,8 @@ export default function Admin() {
     );
   }
 
+  const { data: debugInfo } = trpc.auth.debug.useQuery();
+
   if (!me || me.role !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
@@ -715,6 +717,16 @@ export default function Admin() {
         <Button variant="outline" onClick={() => navigate("/overview")}>
           Go to overview
         </Button>
+        {debugInfo && (
+          <div className="mt-4 p-3 bg-muted rounded text-xs text-left font-mono max-w-sm w-full">
+            <div className="font-semibold mb-1 text-muted-foreground">Auth Debug Info</div>
+            <div>hasAuthHeader: {String(debugInfo.hasAuthHeader)}</div>
+            <div>clerkUserId: {debugInfo.clerkUserId ?? "null"}</div>
+            <div>userId: {debugInfo.userId ?? "null"}</div>
+            <div>email: {debugInfo.email ?? "null"}</div>
+            <div>role: {debugInfo.role ?? "null"}</div>
+          </div>
+        )}
       </div>
     );
   }

@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, name, email, role, planTier FROM users WHERE email IN ('Mike415@gmail.com', 'Mike415+clerktest@gmail.com');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3KN2LnNHTEDqEyj.314e7b3ea523 --database GenHb4QZTAGMkdmFbXCBeo --execute SELECT id, name, email, role, planTier FROM users WHERE email IN ('Mike415@gmail.com', 'Mike415+clerktest@gmail.com');",
+  "rows": [
+    {
+      "id": "1",
+      "name": "NULL",
+      "email": "mike415@gmail.com",
+      "role": "user",
+      "planTier": "free"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\tplanTier\n1\tNULL\tmike415@gmail.com\tuser\tfree\n",
+  "stderr": "",
+  "execution_time_ms": 236
+}
