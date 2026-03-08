@@ -362,7 +362,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   {/* Export — same style as nav links */}
                   <button
                     onClick={exportPlan}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
+                    className="w-full flex justify-start items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
                     title="Export plan (.json)"
                   >
                     <Download className="w-4 h-4 flex-shrink-0 text-white/50" />
@@ -372,7 +372,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   {/* Import — same style as nav links */}
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
+                    className="w-full flex justify-start items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
                     title="Import plan (.json)"
                   >
                     <Upload className="w-4 h-4 flex-shrink-0 text-white/50" />
@@ -384,7 +384,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                     <button
                       onClick={handleReset}
                       className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                        "w-full flex justify-start items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all duration-150",
                         confirming
                           ? "bg-red-500/15 text-red-300"
                           : "text-white/50 hover:bg-white/8 hover:text-white/80"
@@ -401,7 +401,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   {isSignedIn && (
                     <button
                       onClick={() => signOut()}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/50 hover:bg-red-500/10 hover:text-red-300 transition-all duration-150"
+                      className="w-full flex justify-start items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-left text-white/50 hover:bg-red-500/10 hover:text-red-300 transition-all duration-150"
                     >
                       <LogOut className="w-4 h-4 flex-shrink-0 text-white/40" />
                       <span className="flex-1 truncate">Sign out</span>

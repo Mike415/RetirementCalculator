@@ -115,3 +115,4 @@
 - [x] Sign-in refresh: rewrote SessionWatcher using useClerk().addListener() for reliable session change detection
 - [x] Fix Plans page: active plan indicator not working (Load button should become Active badge after loading)
 - [x] Remove Manage Plans from the username dropdown (it lives in Account section nav)
+- [x] Fix Account section: Export, Import, Sign Out alignment to match nav item style
