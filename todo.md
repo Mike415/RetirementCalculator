@@ -53,3 +53,6 @@
 - [x] Set default planTier to "pro" for all new sign-ups
 - [x] Migrate existing free users to pro tier in DB
 - [x] Add a visible "Beta — Pro features unlocked" badge in the sidebar
+
+## Sidebar UX
+- [x] Merge Import and Export into a single compact row with two icon buttons

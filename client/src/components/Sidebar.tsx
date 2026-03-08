@@ -214,23 +214,25 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         {/* Cloud Sync */}
         <CloudSync />
 
-        {/* Export */}
-        <button
-          onClick={exportPlan}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
-        >
-          <Download className="w-3.5 h-3.5 flex-shrink-0" />
-          Export plan (.json)
-        </button>
-
-        {/* Import */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
-        >
-          <Upload className="w-3.5 h-3.5 flex-shrink-0" />
-          Import plan (.json)
-        </button>
+        {/* Import / Export — merged into one compact row */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={exportPlan}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+            title="Export plan (.json)"
+          >
+            <Download className="w-3.5 h-3.5 flex-shrink-0" />
+            Export
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+            title="Import plan (.json)"
+          >
+            <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+            Import
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
