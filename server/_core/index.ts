@@ -26,7 +26,26 @@ async function findAvailablePort(startPort = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+function validateEnv() {
+  const required = [
+    "CLERK_SECRET_KEY",
+    "DATABASE_URL",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PRICE_BASIC",
+    "STRIPE_PRICE_PRO",
+  ];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    console.error(
+      `[Startup] Missing required environment variables: ${missing.join(", ")}\n` +
+      `  These must be set in Settings → Secrets before publishing.`
+    );
+    // Don't crash — Stripe features will throw at call time with a clear message
+  }
+}
+
 async function startServer() {
+  validateEnv();
   const app = express();
   const server = createServer(app);
 

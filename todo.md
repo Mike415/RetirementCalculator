@@ -196,3 +196,6 @@
 
 ## Bug Fixes (Stripe)
 - [x] Fix: Stripe checkout throws "No such price: price_basic_placeholder" — STRIPE_PRICE_BASIC/PRO env vars added to production; products.ts now throws on missing env instead of using placeholders
+
+## Bug Fixes (Env / Production)
+- [x] Fix: STRIPE_PRICE_BASIC missing in production — secrets confirmed set; added startup validateEnv() log; republish required to inject into production
