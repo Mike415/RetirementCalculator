@@ -18,8 +18,8 @@ function requireTier(userTier: string, required: "basic" | "pro") {
   }
 }
 
-// Max plans per tier
-const MAX_PLANS: Record<string, number> = { free: 0, basic: 1, pro: 10 };
+// Max plans per tier — mirrors shared/tierLimits.ts
+const MAX_PLANS: Record<string, number> = { free: 0, basic: 3, pro: 10 };
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 

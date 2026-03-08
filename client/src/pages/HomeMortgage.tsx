@@ -13,7 +13,9 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import type { AdditionalProperty } from "@/lib/projection";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, ChevronDown, ChevronUp, Home } from "lucide-react";
+import { Plus, Trash2, ChevronDown, ChevronUp, Home, Lock } from "lucide-react";
+import { useTierLimits } from "@/hooks/useTierLimits";
+import { useHashLocation } from "wouter/use-hash-location";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -223,6 +225,13 @@ function PropertyCard({
 
 export default function HomeMortgage() {
   const { inputs, updateInput } = usePlanner();
+  const [, navigate] = useHashLocation();
+  const { limits, cta } = useTierLimits();
+  // Additional properties (loaded after limits)
+  const additionalPropertiesEarly = inputs.additionalProperties ?? [];
+  // +1 for the primary home that always exists
+  const canAddHome = limits.homes === Infinity || (1 + additionalPropertiesEarly.length) < limits.homes;
+  const homeLimitCta = cta("additional properties");
 
   // Primary home calculations
   const equity = inputs.homeValue - inputs.homeLoan;
@@ -278,14 +287,27 @@ export default function HomeMortgage() {
             Configure your primary home and any additional properties. All properties feed into the projection.
           </p>
         </div>
-        <Button
-          onClick={addProperty}
-          className="shrink-0 bg-[#1B4332] hover:bg-[#2D6A4F] text-white gap-1.5"
-          size="sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Property
-        </Button>
+        {canAddHome ? (
+          <Button
+            onClick={addProperty}
+            className="shrink-0 bg-[#1B4332] hover:bg-[#2D6A4F] text-white gap-1.5"
+            size="sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Property
+          </Button>
+        ) : (
+          <Button
+            onClick={() => navigate("/billing")}
+            title={homeLimitCta}
+            className="shrink-0 bg-[#1B4332]/20 hover:bg-[#1B4332]/30 text-[#1B4332] gap-1.5"
+            size="sm"
+            variant="outline"
+          >
+            <Lock className="w-4 h-4" />
+            Upgrade for More
+          </Button>
+        )}
       </div>
 
       {/* Portfolio summary (shown when multiple properties exist) */}

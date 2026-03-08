@@ -15,11 +15,14 @@ import {
   Briefcase,
   ChevronDown,
   ChevronUp,
+  Lock,
   Plus,
   Trash2,
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { useState } from "react";
+import { useTierLimits } from "@/hooks/useTierLimits";
+import { useHashLocation } from "wouter/use-hash-location";
 
 const PRESETS: Omit<IncomePhase, "id" | "startAge">[] = [
   { label: "Spouse Income",            annualIncome: 80000,  growthRate: 0.02 },
@@ -33,8 +36,11 @@ const PRESETS: Omit<IncomePhase, "id" | "startAge">[] = [
 export default function IncomePhases() {
   const { inputs, updateInput } = usePlanner();
   const phases = inputs.incomePhases ?? [];
-
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [, navigate] = useHashLocation();
+  const { limits, cta } = useTierLimits();
+  const canAddAltIncome = limits.altIncome === Infinity || phases.length < limits.altIncome;
+  const altIncomeCta = cta("more income streams");
 
   function addPhase(preset?: Omit<IncomePhase, "id" | "startAge">) {
     const newPhase: IncomePhase = {
@@ -111,7 +117,8 @@ export default function IncomePhases() {
           {PRESETS.map((preset) => (
             <button
               key={preset.label}
-              onClick={() => addPhase(preset)}
+              onClick={() => canAddAltIncome ? addPhase(preset) : navigate("/billing")}
+              title={!canAddAltIncome ? altIncomeCta : undefined}
               className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-slate-200 bg-white hover:bg-[#1B4332]/5 hover:border-[#1B4332]/30 transition-colors text-left group"
             >
               <Briefcase className="w-3.5 h-3.5 text-[#2D6A4F] flex-shrink-0" />
@@ -275,13 +282,24 @@ export default function IncomePhases() {
             );
           })}
 
-          <button
-            onClick={() => addPhase()}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 hover:border-[#1B4332]/40 hover:text-[#1B4332] hover:bg-[#1B4332]/5 transition-colors text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Add Income Phase
-          </button>
+          {canAddAltIncome ? (
+            <button
+              onClick={() => addPhase()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 hover:border-[#1B4332]/40 hover:text-[#1B4332] hover:bg-[#1B4332]/5 transition-colors text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Add Income Phase
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/billing")}
+              title={altIncomeCta}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-[#1B4332]/30 text-[#1B4332] hover:bg-[#1B4332]/5 transition-colors text-sm font-medium"
+            >
+              <Lock className="w-4 h-4" />
+              Upgrade to Add More Income Streams
+            </button>
+          )}
         </div>
       </SectionCard>
     </div>

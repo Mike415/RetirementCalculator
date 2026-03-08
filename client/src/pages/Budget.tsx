@@ -11,8 +11,10 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { getBudgetMonthlyTotal } from "@/lib/projection";
 import { cn } from "@/lib/utils";
-import { Copy, Plus, Trash2, X } from "lucide-react";
+import { Copy, Lock, Plus, Trash2, X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
+import { useTierLimits } from "@/hooks/useTierLimits";
+import { useHashLocation } from "wouter/use-hash-location";
 
 const PERIOD_COLORS = [
   "bg-emerald-100 text-emerald-800 border-emerald-200",
@@ -135,6 +137,10 @@ export default function Budget() {
   const { inputs, updateInput } = usePlanner();
   const { budgetPeriods } = inputs;
   const [activePeriodIdx, setActivePeriodIdx] = useState(0);
+  const [, navigate] = useHashLocation();
+  const { limits, tier, cta } = useTierLimits();
+  const canAddPeriod = limits.budgetPeriods === Infinity || budgetPeriods.length < limits.budgetPeriods;
+  const periodLimitCta = cta("more budget periods");
 
   const activePeriod = budgetPeriods[activePeriodIdx];
   const monthlyTotal = getBudgetMonthlyTotal(activePeriod, activePeriodIdx);
@@ -246,8 +252,8 @@ export default function Budget() {
         </div>
       </div>
 
-      {/* Period tabs */}
-      <div className="flex gap-2 flex-wrap">
+      {/* Period tabs + limit indicator */}
+      <div className="flex gap-2 flex-wrap items-center">
         {budgetPeriods.map((period, idx) => {
           const total = getBudgetMonthlyTotal(period, idx);
           return (
@@ -273,6 +279,15 @@ export default function Budget() {
             </button>
           );
         })}
+        {!canAddPeriod && (
+          <button
+            onClick={() => navigate("/billing")}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1B4332] bg-[#1B4332]/10 border border-[#1B4332]/20 rounded-xl hover:bg-[#1B4332]/20 transition-colors"
+          >
+            <Lock className="w-3 h-3" />
+            {limits.budgetPeriods === Infinity ? "" : `${budgetPeriods.length}/${limits.budgetPeriods} periods`} Upgrade for more
+          </button>
+        )}
       </div>
 
       {/* Active period editor */}
@@ -308,14 +323,25 @@ export default function Budget() {
           {/* Bottom row: duplicate + monthly total */}
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => duplicatePeriod(activePeriodIdx)}
-                title="Duplicate this period"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Duplicate
-              </button>
+              {canAddPeriod ? (
+                <button
+                  onClick={() => duplicatePeriod(activePeriodIdx)}
+                  title="Duplicate this period"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Duplicate
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate("/billing")}
+                  title={periodLimitCta}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B4332] bg-[#1B4332]/10 border border-[#1B4332]/20 rounded-lg hover:bg-[#1B4332]/20 transition-colors"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Duplicate (Upgrade)
+                </button>
+              )}
               {budgetPeriods.length > 1 && (
                 <button
                   onClick={() => deletePeriod(activePeriodIdx)}

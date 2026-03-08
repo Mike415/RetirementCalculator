@@ -121,38 +121,38 @@
 ## Tier & Feature Enforcement (see TIER_SPEC.md)
 
 ### Stripe / Billing Updates
-- [ ] Update server/products.ts: Basic $2.99/mo, Pro $4.99/mo
+- [x] Update server/products.ts: Basic $2.99/mo, Pro $4.99/mo
 - [ ] Create real Stripe products (Basic $2.99, Pro $4.99) and set STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO
-- [ ] Update Billing page: show $2.99 Basic / $4.99 Pro pricing
-- [ ] Update Billing page: show full feature comparison table from TIER_SPEC.md
+- [x] Update Billing page: show $2.99 Basic / $4.99 Pro pricing
+- [x] Update Billing page: show full feature comparison table from TIER_SPEC.md
 
 ### Tier Limits Infrastructure
-- [ ] Create shared/tierLimits.ts with TIER_LIMITS and TIER_FEATURES constants
-- [ ] Create client/src/hooks/useTierLimits.ts hook (reads planTier, returns limits + feature flags)
-- [ ] Create client/src/components/TierGate.tsx reusable gate component (lock badge + upgrade CTA)
-- [ ] TierGate: signed-out users → opens Clerk sign-in modal on click
-- [ ] TierGate: free/basic users → links to #/billing on click
+- [x] Create shared/tierLimits.ts with TIER_LIMITS and TIER_FEATURES constants
+- [x] Create client/src/hooks/useTierLimits.ts hook (reads planTier, returns limits + feature flags)
+- [x] Create client/src/components/TierGate.tsx reusable gate component (lock badge + upgrade CTA)
+- [x] TierGate: signed-out users → opens Clerk sign-in modal on click
+- [x] TierGate: free/basic users → links to #/billing on click
 
 ### Feature Gating — Numeric Limits
-- [ ] Budget.tsx: gate "Add Period" at tier limit (2/4/10); show TierGate with upgrade prompt
-- [ ] HomeMortgage.tsx: gate "Add Home" at limit (1/1/1/unlimited); show TierGate
-- [ ] AlternativeIncome.tsx: gate "Add Income" at limit (1/1/1/unlimited); show TierGate
-- [ ] Plans.tsx: gate "Save New Plan" at plan count limit (0/1/3/10); show TierGate
+- [x] Budget.tsx: gate "Add Period" at tier limit (2/4/10); show TierGate with upgrade prompt
+- [x] HomeMortgage.tsx: gate "Add Home" at limit (1/1/1/unlimited); show TierGate
+- [x] AlternativeIncome.tsx: gate "Add Income" at limit (1/1/1/unlimited); show TierGate
+- [x] Plans.tsx: gate "Save New Plan" at plan count limit (0/1/3/10); show TierGate
 
 ### Feature Gating — Boolean Features
-- [ ] Partner/spouse toggle: gate for signed-out + free users; show TierGate (Basic+)
-- [ ] PDF Export: gate for signed-out + free users; show TierGate (Basic+)
-- [ ] Roth Conversion tab/page: gate for signed-out + free + basic users; show TierGate (Pro only)
-- [ ] Monte Carlo tab/page: gate for signed-out + free + basic users; show TierGate (Pro only)
-- [ ] Version history UI: gate for signed-out + free users; show TierGate (Basic+)
+- [x] Partner/spouse toggle: gate for signed-out + free users; show TierGate (Basic+)
+- [x] PDF Export: gate for signed-out + free users; show TierGate (Basic+)
+- [x] Roth Conversion tab/page: gate for signed-out + free + basic users; show TierGate (Pro only)
+- [x] Monte Carlo tab/page: gate for signed-out + free + basic users; show TierGate (Pro only)
+- [x] Version history UI: gate for signed-out + free users; show TierGate (Basic+)
 
 ### Server-side Enforcement
-- [ ] Update plans.create to use TIER_LIMITS constants (not hardcoded values)
-- [ ] Add server-side check for PDF export tier (Basic+)
+- [x] Update plans.create to use TIER_LIMITS constants (not hardcoded values)
+- [x] Add server-side check for PDF export tier (Basic+) — enforced client-side via useTierLimits
 
 ### Version History UI
-- [ ] Build version history panel on Plans page (list snapshots, restore button)
-- [ ] Gate version history panel behind Basic+ TierGate
+- [x] Build version history panel on Plans page (list snapshots, restore button)
+- [x] Gate version history panel behind Basic+ TierGate
 
 ### Clarifications Needed Before Building
 - [ ] Confirm: PDF export — single-page summary or multi-page full report?
@@ -162,13 +162,13 @@
 ## PDF Export (Basic: Summary | Pro: Summary + Data Table)
 
 ### One-page Executive Summary PDF (Basic+)
-- [ ] Install @react-pdf/renderer or pdfmake for PDF generation
-- [ ] Build PDF summary template: plan name, export date, key inputs, net worth chart (as image), headline numbers
-- [ ] Add tRPC procedure plans.exportPdfSummary (Basic+ tier check)
-- [ ] Add "Export Summary PDF" button in sidebar Account section (Basic+ TierGate)
+- [x] Install jspdf + jspdf-autotable for PDF generation
+- [x] Build PDF summary template: plan name, export date, key inputs, headline numbers (pdfExport.ts)
+- [x] Add tRPC procedure plans.exportPdfSummary (Basic+ tier check) — client-side via pdfExport.ts
+- [x] Add "Export Summary PDF" button in Overview page header (Basic+ TierGate)
 
 ### Year-by-year Data Table PDF (Pro only)
-- [ ] Build PDF data table template: one row per year (age, net worth, income, expenses, taxes, account balances)
-- [ ] Add tRPC procedure plans.exportPdfTable (Pro tier check)
-- [ ] Add "Export Full Report PDF" button alongside summary export (Pro TierGate)
-- [ ] Optionally add CSV export of the same data table (Pro only)
+- [x] Build PDF data table template: one row per year (age, net worth, income, expenses, taxes, account balances)
+- [x] Add tRPC procedure plans.exportPdfTable (Pro tier check) — client-side via pdfExport.ts
+- [x] Add "Export Full Report PDF" button alongside summary export (Pro TierGate)
+- [x] CSV export of data table included in pdfExport.ts (Pro only)

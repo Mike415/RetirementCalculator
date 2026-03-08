@@ -28,7 +28,11 @@ import {
   X,
   Loader2,
   Cloud,
+  History,
+  RotateCcw,
+  Lock,
 } from "lucide-react";
+import { useTierLimits } from "@/hooks/useTierLimits";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -69,6 +73,7 @@ function PlanCard({
   onRename,
   onDelete,
   onFork,
+  onHistory,
   loading,
 }: {
   plan: PlanMeta;
@@ -77,6 +82,7 @@ function PlanCard({
   onRename: (name: string) => void;
   onDelete: () => void;
   onFork: () => void;
+  onHistory: () => void;
   loading: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -201,6 +207,14 @@ function PlanCard({
           title="Fork (duplicate) this plan"
         >
           <Copy className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={onHistory}
+          className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          title="Version history"
+        >
+          <History className="w-3.5 h-3.5" />
         </button>
 
         <button
@@ -329,6 +343,123 @@ function NewPlanModal({
   );
 }
 
+// ── Version History Modal ────────────────────────────────────────────────────
+type PlanVersion = { id: number; savedAt: Date | string; data: unknown };
+
+function VersionHistoryModal({
+  planId,
+  planName,
+  hasAccess,
+  onClose,
+  onRestore,
+}: {
+  planId: number;
+  planName: string;
+  hasAccess: boolean;
+  onClose: () => void;
+  onRestore: (data: unknown) => void;
+}) {
+  const versionsQuery = trpc.plans.versions.useQuery(
+    { planId },
+    { enabled: hasAccess, retry: false }
+  );
+  const [restoringId, setRestoringId] = useState<number | null>(null);
+
+  const handleRestore = async (version: PlanVersion) => {
+    setRestoringId(version.id);
+    try {
+      onRestore(version.data);
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Version History</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{planName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {!hasAccess ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 py-8">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <Lock className="w-6 h-6 text-slate-400" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-slate-700">Version history is a paid feature</p>
+              <p className="text-xs text-slate-500 mt-1">Upgrade to Basic or Pro to access up to 10 saved snapshots per plan.</p>
+            </div>
+            <a
+              href="#/billing"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-[#1B4332] text-white text-xs font-semibold hover:bg-[#2D6A4F] transition-colors"
+            >
+              View Plans
+            </a>
+          </div>
+        ) : versionsQuery.isLoading ? (
+          <div className="flex-1 flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+          </div>
+        ) : !versionsQuery.data?.length ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8 text-center">
+            <History className="w-8 h-8 text-slate-200" />
+            <p className="text-sm font-semibold text-slate-500">No versions saved yet</p>
+            <p className="text-xs text-slate-400">Versions are created automatically each time you save this plan.</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {versionsQuery.data.map((v) => (
+              <div
+                key={v.id}
+                className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50 hover:bg-white transition-colors"
+              >
+                <div>
+                  <p className="text-xs font-semibold text-slate-700">
+                    {new Date(v.savedAt as unknown as string).toLocaleString(undefined, {
+                      month: "short", day: "numeric", year: "numeric",
+                      hour: "numeric", minute: "2-digit",
+                    })}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {timeAgo(v.savedAt as unknown as string)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleRestore(v as PlanVersion)}
+                  disabled={restoringId === v.id}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1B4332] text-white text-xs font-semibold hover:bg-[#2D6A4F] transition-colors disabled:opacity-50"
+                >
+                  {restoringId === v.id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-3 h-3" />
+                  )}
+                  Restore
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[10px] text-slate-400 text-center mt-4">
+          Restoring a version loads it into your active session but does not overwrite the saved plan.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Plans() {
   const { isSignedIn, isLoaded } = useUser();
@@ -336,6 +467,9 @@ export default function Plans() {
   const { cloudPlanId, doSave } = useCloudSyncContext();
   const [showNewModal, setShowNewModal] = useState(false);
   const [loadingPlanId, setLoadingPlanId] = useState<number | null>(null);
+  const [historyPlanId, setHistoryPlanId] = useState<number | null>(null);
+  const [historyPlanName, setHistoryPlanName] = useState("");
+  const { features } = useTierLimits();
   // Track which plan was most recently loaded by the user on this page.
   // Falls back to cloudPlanId (the auto-save plan) when nothing has been
   // explicitly loaded yet.
@@ -599,6 +733,7 @@ export default function Plans() {
               onRename={(name) => handleRename(plan.id, name)}
               onDelete={() => handleDelete(plan.id)}
               onFork={() => handleForkPlan(plan.id, `${plan.name} (copy)`)}
+              onHistory={() => { setHistoryPlanId(plan.id); setHistoryPlanName(plan.name); }}
               loading={loadingPlanId === plan.id}
             />
           ))}
@@ -619,6 +754,25 @@ export default function Plans() {
           onClose={() => setShowNewModal(false)}
           onCreateBlank={handleCreateBlank}
           onForkCurrent={handleForkCurrent}
+        />
+      )}
+
+      {/* Version History Modal */}
+      {historyPlanId !== null && (
+        <VersionHistoryModal
+          planId={historyPlanId}
+          planName={historyPlanName}
+          hasAccess={features.versionHistory}
+          onClose={() => setHistoryPlanId(null)}
+          onRestore={(data) => {
+            const result = importFromObject(data as Record<string, unknown>);
+            if (result.ok) {
+              toast.success("Version restored!");
+              setHistoryPlanId(null);
+            } else {
+              toast.error(result.error ?? "Failed to restore version.");
+            }
+          }}
         />
       )}
     </div>

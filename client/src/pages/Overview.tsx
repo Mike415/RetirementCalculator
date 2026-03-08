@@ -8,8 +8,11 @@ import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle, X, CloudDownload } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle, X, CloudDownload, Lock, FileDown } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
+import { useTierLimits } from "@/hooks/useTierLimits";
+import { useHashLocation } from "wouter/use-hash-location";
+import { exportSummaryPDF } from "@/lib/pdfExport";
 import { runMonteCarlo, MonteCarloResult, aggregateAccounts } from "@/lib/projection";
 import {
   Area,
@@ -150,6 +153,8 @@ function MonteCarloTooltip({ active, payload, label }: any) {
 export default function Overview() {
   const { projection, inputs, updateInput } = usePlanner();
   const { pendingCloudPlan, doLoad, dismissPendingPlan } = useCloudSyncContext();
+  const { features, tier, cta } = useTierLimits();
+  const [, navigate] = useHashLocation();
   const [showMonteCarlo, setShowMonteCarlo] = useState(false);
   const [mcRunning, setMcRunning] = useState(false);
   const [mcData, setMcData] = useState<MonteCarloResult[] | null>(null);
@@ -356,6 +361,19 @@ export default function Overview() {
         </div>
       </div>
 
+      {/* PDF Export button */}
+      {features.pdfSummary && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => exportSummaryPDF("My Plan", inputs, projection)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1B4332] bg-white border border-[#1B4332]/30 rounded-lg hover:bg-[#1B4332]/5 transition-colors"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Export Summary PDF
+          </button>
+        </div>
+      )}
+
       {/* Data Validation Warnings */}
       {warnings.filter((w) => !dismissedWarnings.has(w.message)).length > 0 && (
         <div className="space-y-2">
@@ -466,23 +484,34 @@ export default function Overview() {
                 Inputs changed — re-run
               </span>
             )}
-            <button
-              onClick={showMonteCarlo && mcData ? () => setShowMonteCarlo(false) : handleRunMonteCarlo}
-              disabled={mcRunning}
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
-                showMonteCarlo && mcData
-                  ? "bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-[#1B4332] hover:text-[#1B4332]"
-              )}
-            >
-              {mcRunning ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Dices className="h-3.5 w-3.5" />
-              )}
-              {mcRunning ? "Running..." : showMonteCarlo && mcData ? "Monte Carlo ON" : "Monte Carlo"}
-            </button>
+            {features.monteCarlo ? (
+              <button
+                onClick={showMonteCarlo && mcData ? () => setShowMonteCarlo(false) : handleRunMonteCarlo}
+                disabled={mcRunning}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                  showMonteCarlo && mcData
+                    ? "bg-[#1B4332] text-white border-[#1B4332] hover:bg-[#2D6A4F]"
+                    : "bg-white text-slate-600 border-slate-200 hover:border-[#1B4332] hover:text-[#1B4332]"
+                )}
+              >
+                {mcRunning ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Dices className="h-3.5 w-3.5" />
+                )}
+                {mcRunning ? "Running..." : showMonteCarlo && mcData ? "Monte Carlo ON" : "Monte Carlo"}
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate("/billing")}
+                title={cta("Monte Carlo simulation")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border bg-white text-slate-400 border-slate-200 hover:border-[#1B4332] hover:text-[#1B4332]"
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Monte Carlo
+              </button>
+            )}
           </div>
         </div>
 

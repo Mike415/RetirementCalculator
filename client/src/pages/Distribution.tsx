@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { WithdrawalAccount, WithdrawalStrategy } from "@/lib/projection";
 import { RothOptimizerSettings, RothOptimizationResult } from "@/lib/taxCalc";
 import { optimizeRothConversions } from "@/lib/rothOptimizer";
+import { TierGate } from "@/components/TierGate";
+import { useTierLimits } from "@/hooks/useTierLimits";
 
 import {
   GripVertical,
@@ -161,6 +163,7 @@ export default function Distribution() {
   const ws = inputs.withdrawalStrategy;
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const { features, tier, cta } = useTierLimits();
 
   // Optimizer state
   const [optimizerRunning, setOptimizerRunning] = useState(false);
@@ -585,6 +588,12 @@ export default function Distribution() {
       )}
 
       {/* ── Roth Conversion Net-Worth Optimizer ── */}
+      <TierGate
+        locked={!features.rothOptimizer}
+        cta={cta("the Roth Conversion Optimizer")}
+        signedOut={tier === "signedOut"}
+        className="rounded-xl"
+      >
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-emerald-50 to-white">
@@ -888,6 +897,7 @@ export default function Distribution() {
           </div>
         )}
       </div>
+      </TierGate>
 
       <p className="text-[11px] text-slate-400 text-center pb-4">
         Projections are estimates. Consult a tax advisor for personalized Roth conversion and withdrawal strategies.

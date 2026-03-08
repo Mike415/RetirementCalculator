@@ -2,12 +2,15 @@
  * Subscription product definitions for Project Retire.
  *
  * SETUP INSTRUCTIONS:
- * 1. Go to your Stripe Dashboard → Products
- * 2. Create two products: "Basic" and "Pro"
- * 3. For each, create a recurring monthly price
- * 4. Copy the Price IDs (price_xxx) into STRIPE_PRICE_IDS below
+ * 1. Claim the Stripe test sandbox at the link in PROJECT_CONTEXT.md
+ * 2. Go to Stripe Dashboard → Products → Create two products:
+ *    - "Basic" with a recurring monthly price of $2.99
+ *    - "Pro" with a recurring monthly price of $4.99
+ * 3. Copy the Price IDs (price_xxx) into Settings → Secrets:
+ *    - STRIPE_PRICE_BASIC
+ *    - STRIPE_PRICE_PRO
  *
- * For now these are placeholder IDs — replace them with real ones from Stripe.
+ * Pricing: Basic $2.99/mo · Pro $4.99/mo
  */
 
 export interface PlanProduct {
@@ -23,25 +26,32 @@ export const PRODUCTS: PlanProduct[] = [
   {
     tier: "basic",
     name: "Basic",
-    description: "Cloud save & sync for one plan",
-    priceMonthly: 499, // $4.99/mo
+    description: "Cloud save, PDF export, partner modeling",
+    priceMonthly: 299, // $2.99/mo
     stripePriceId: process.env.STRIPE_PRICE_BASIC ?? "price_basic_placeholder",
     features: [
-      "1 saved cloud plan",
+      "3 saved cloud plans",
+      "4 budget periods",
+      "Partner / spouse modeling",
+      "PDF summary export",
+      "Version history (last 10 saves)",
       "Auto-save & sync across devices",
-      "Export / import JSON",
+      "Import / Export JSON",
     ],
   },
   {
     tier: "pro",
     name: "Pro",
-    description: "Unlimited plans + version history",
-    priceMonthly: 999, // $9.99/mo
+    description: "Monte Carlo, Roth optimizer, unlimited plans",
+    priceMonthly: 499, // $4.99/mo
     stripePriceId: process.env.STRIPE_PRICE_PRO ?? "price_pro_placeholder",
     features: [
-      "Up to 10 saved cloud plans",
-      "Version history (last 10 saves)",
-      "Priority support",
+      "10 saved cloud plans",
+      "10 budget periods",
+      "Unlimited homes & alt income",
+      "Monte Carlo simulation",
+      "Roth conversion optimizer",
+      "PDF year-by-year data table + CSV",
       "All Basic features",
     ],
   },
