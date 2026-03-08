@@ -1,4 +1,4 @@
-import { ClerkProvider, useAuth, useClerk } from "@clerk/react";
+import { ClerkProvider, useAuth, useUser } from "@clerk/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { useEffect, useRef } from "react";
@@ -57,61 +57,50 @@ function TrpcTokenBridge() {
 }
 
 /**
- * SessionWatcher — uses Clerk's low-level addListener() API to detect
- * when a session is newly established (e.g. after modal sign-in) and
- * performs a hard page reload.
+ * SessionWatcher — watches Clerk's isSignedIn state and reacts to
+ * sign-in / sign-out transitions without requiring a manual page refresh.
  *
- * Why addListener instead of useSession?
- * addListener fires synchronously inside Clerk's internal state machine,
- * before React's render cycle. This means it reliably catches the session
- * change even when React's reconciler hasn't propagated the update yet.
+ * Sign-in (false → true):
+ *   Invalidates all tRPC queries so they refetch with the new auth token.
+ *   This causes CloudSyncContext / PlannerContext to re-run their queries
+ *   and pick up the user's cloud data automatically — no reload needed.
  *
- * Why a hard reload?
- * Clerk v6 modal sign-in updates the internal session store, but React's
- * reconciler doesn't always flush the change synchronously across all
- * provider boundaries (PlannerContext, CloudSyncContext, etc.). A hard
- * reload is the only guaranteed way to ensure every part of the app
- * starts fresh with the correct auth context.
- *
- * The 500ms delay gives Clerk time to finish writing the session cookie
- * before the page reloads, preventing a race where the reload fires
- * before the cookie is available.
+ * Sign-out (true → false):
+ *   Hard reload to clear all in-memory state cleanly (query cache, context
+ *   state, localStorage keys) since invalidation alone can leave stale data.
  */
 function SessionWatcher() {
-  const clerk = useClerk();
-  const prevSessionId = useRef<string | null | undefined>(undefined);
-  const reloadScheduled = useRef(false);
+  const { isSignedIn, isLoaded } = useUser();
+  const utils = trpc.useUtils();
+  const prevSignedIn = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
-    // Wait until Clerk is loaded before subscribing
-    if (!clerk.loaded) return;
+    // Don't act until Clerk has finished loading
+    if (!isLoaded) return;
 
-    const unsubscribe = clerk.addListener(({ session }) => {
-      const currentId = session?.id ?? null;
+    // First render: record initial state without any side effects
+    if (prevSignedIn.current === undefined) {
+      prevSignedIn.current = isSignedIn ?? false;
+      return;
+    }
 
-      // First emission: record initial state, don't reload
-      if (prevSessionId.current === undefined) {
-        prevSessionId.current = currentId;
-        return;
-      }
+    const wasSignedIn = prevSignedIn.current;
+    const nowSignedIn = isSignedIn ?? false;
+    prevSignedIn.current = nowSignedIn;
 
-      // Session went from absent → present: user just signed in
-      if (!prevSessionId.current && currentId && !reloadScheduled.current) {
-        reloadScheduled.current = true;
-        console.log("[SessionWatcher] New session detected, reloading in 500ms...");
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-        return;
-      }
+    // Signed in: invalidate all queries so the UI updates immediately
+    if (!wasSignedIn && nowSignedIn) {
+      console.log("[SessionWatcher] Sign-in detected — invalidating queries");
+      utils.invalidate();
+      return;
+    }
 
-      prevSessionId.current = currentId;
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [clerk.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Signed out: hard reload to clear all state cleanly
+    if (wasSignedIn && !nowSignedIn) {
+      console.log("[SessionWatcher] Sign-out detected — reloading");
+      setTimeout(() => window.location.reload(), 300);
+    }
+  }, [isLoaded, isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }

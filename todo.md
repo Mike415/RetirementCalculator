@@ -172,3 +172,7 @@
 - [x] Add tRPC procedure plans.exportPdfTable (Pro tier check) — client-side via pdfExport.ts
 - [x] Add "Export Full Report PDF" button alongside summary export (Pro TierGate)
 - [x] CSV export of data table included in pdfExport.ts (Pro only)
+
+## Auth Bug Fixes
+
+- [x] Fix: login requires a page refresh before app state updates — replaced hard reload with tRPC query invalidation on isSignedIn transition
