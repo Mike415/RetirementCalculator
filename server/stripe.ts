@@ -195,8 +195,11 @@ export async function createCheckoutSession(params: {
       customer_email: params.userEmail ?? "",
       customer_name: params.userName ?? "",
     },
-    success_url: `${params.origin}/#/billing?checkout=success&tier=${params.tier}`,
-    cancel_url: `${params.origin}/#/billing?checkout=canceled`,
+  // Use clean hash paths with no query params — wouter's hash router includes
+  // query strings as part of the path, causing route mismatches.
+  // The client stores checkout intent in sessionStorage before redirecting.
+  success_url: `${params.origin}/#/billing`,
+  cancel_url: `${params.origin}/#/billing`,
   });
 
   if (!session.url) throw new Error("Stripe did not return a checkout URL");

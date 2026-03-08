@@ -224,3 +224,6 @@
 ## Bug Fixes — Stripe Checkout
 - [x] Fix: success_url/cancel_url now point to /#/billing?checkout=success/canceled (hash routing)
 - [x] Fix: added verifyCheckout tRPC mutation — on checkout=success, client calls Stripe directly to update tier immediately (webhook fallback)
+
+## Bug Fixes — Routing
+- [x] Fix: 404 on /#/billing — root cause was wouter treating query strings as path segments; fixed by using sessionStorage for checkout intent instead of URL params; success_url/cancel_url now use clean /#/billing

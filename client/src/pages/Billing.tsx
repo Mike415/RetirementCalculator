@@ -185,52 +185,36 @@ export default function Billing() {
   // Beta: treat all signed-in users as pro-level for feature access
   const isBeta = true;
 
-  // Detect ?checkout=success or ?checkout=canceled when Stripe redirects back.
-  // With hash routing the URL is: /#/billing?checkout=success
-  // The params live in the hash fragment, not window.location.search.
+  // Detect checkout return via sessionStorage (avoids wouter hash-path query string bug).
+  // Before redirecting to Stripe we write sessionStorage.checkoutIntent = tier.
+  // On return to /#/billing (clean URL), we read it here, show the banner, and
+  // immediately verify the subscription with Stripe to update the DB tier.
   useEffect(() => {
-    // Parse params from the hash: "#/billing?checkout=success" → "checkout=success"
-    const hash = window.location.hash; // e.g. "#/billing?checkout=success&tier=basic"
-    const queryStart = hash.indexOf("?");
-    const hashParams = queryStart >= 0
-      ? new URLSearchParams(hash.slice(queryStart + 1))
-      : new URLSearchParams();
-
-    // Also check the regular query string as fallback (for non-hash deployments)
-    const regularParams = new URLSearchParams(window.location.search);
-
-    const status =
-      hashParams.get("checkout") ?? regularParams.get("checkout");
-
-    if (status === "success" || status === "canceled") {
-      setCheckoutStatus(status);
-      // Clean the param from the URL without a page reload
-      const cleanHash = hash.slice(0, queryStart >= 0 ? queryStart : undefined);
-      window.history.replaceState(
-        {},
-        "",
-        window.location.pathname + cleanHash
+    const intent = sessionStorage.getItem("checkoutIntent");
+    if (intent) {
+      sessionStorage.removeItem("checkoutIntent");
+      // Stripe redirects back here on both success and cancel.
+      // We call verifyCheckout to determine if a subscription was created.
+      verifyCheckout.mutate(
+        { sessionId: undefined },
+        {
+          onSuccess: (result) => {
+            if (result.updated) {
+              console.log(`[Billing] Tier verified and updated to ${result.tier}`);
+              setCheckoutStatus("success");
+              utils.user.profile.invalidate();
+            } else {
+              // No active subscription found — user canceled
+              setCheckoutStatus("canceled");
+            }
+          },
+          onError: (err) => {
+            console.warn("[Billing] verifyCheckout failed:", err.message);
+            // Assume canceled if we can't verify
+            setCheckoutStatus("canceled");
+          },
+        }
       );
-
-      // On success: immediately verify with Stripe and update the tier in DB.
-      // This is a fallback for when the webhook is delayed or misconfigured.
-      if (status === "success") {
-        verifyCheckout.mutate(
-          { sessionId: undefined },
-          {
-            onSuccess: (result) => {
-              if (result.updated) {
-                console.log(`[Billing] Tier verified and updated to ${result.tier}`);
-                utils.user.profile.invalidate();
-              }
-            },
-            onError: (err) => {
-              console.warn("[Billing] verifyCheckout failed:", err.message);
-              // Non-fatal — webhook will handle it eventually
-            },
-          }
-        );
-      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -246,6 +230,10 @@ export default function Billing() {
         tier,
         origin: window.location.origin,
       });
+      // Store intent in sessionStorage so we can show the success banner
+      // when Stripe redirects back to /#/billing (no query params — wouter
+      // treats query strings as part of the path, breaking route matching).
+      sessionStorage.setItem("checkoutIntent", tier);
       toast.info("Redirecting to checkout…");
       window.location.href = url;
     } catch (err: unknown) {
