@@ -62,3 +62,4 @@
 - [x] Restructure sidebar: move Import/Export/CloudSync under user profile strip (with signed-out state)
 - [x] Sidebar: collapsible dropdown under username for Import/Export/CloudSync
 - [x] Move Reset to Defaults into the username dropdown, remove from sidebar footer
+- [x] Overview: add X dismiss buttons to warning cards (persist dismissals in localStorage)

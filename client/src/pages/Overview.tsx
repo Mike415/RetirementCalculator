@@ -7,7 +7,7 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle, X } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { runMonteCarlo, MonteCarloResult, aggregateAccounts } from "@/lib/projection";
 import {
@@ -152,6 +152,23 @@ export default function Overview() {
   const [mcRunning, setMcRunning] = useState(false);
   const [mcData, setMcData] = useState<MonteCarloResult[] | null>(null);
   const [mcInputsKey, setMcInputsKey] = useState("");
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem("rp_dismissed_warnings");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const dismissWarning = (key: string) => {
+    setDismissedWarnings((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      try { localStorage.setItem("rp_dismissed_warnings", JSON.stringify(Array.from(next))); } catch {}
+      return next;
+    });
+  };
 
   const inputsKey = useMemo(() => JSON.stringify({
     retirementAge: inputs.retirementAge,
@@ -306,21 +323,36 @@ export default function Overview() {
       </div>
 
       {/* Data Validation Warnings */}
-      {warnings.length > 0 && (
+      {warnings.filter((w) => !dismissedWarnings.has(w.message)).length > 0 && (
         <div className="space-y-2">
-          {warnings.map((w, i) => (
-            <div key={i} className={cn(
-              "flex items-start gap-3 rounded-xl px-4 py-3 text-xs font-medium border",
-              w.level === "error" ? "bg-red-50 border-red-200 text-red-700" :
-              w.level === "warn" ? "bg-amber-50 border-amber-200 text-amber-700" :
-              "bg-blue-50 border-blue-200 text-blue-700"
-            )}>
-              {w.level === "error" ? <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> :
-               w.level === "warn" ? <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> :
-               <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />}
-              <span>{w.message}</span>
-            </div>
-          ))}
+          {warnings
+            .filter((w) => !dismissedWarnings.has(w.message))
+            .map((w, i) => (
+              <div key={i} className={cn(
+                "flex items-start gap-3 rounded-xl px-4 py-3 text-xs font-medium border",
+                w.level === "error" ? "bg-red-50 border-red-200 text-red-700" :
+                w.level === "warn" ? "bg-amber-50 border-amber-200 text-amber-700" :
+                "bg-blue-50 border-blue-200 text-blue-700"
+              )}>
+                {w.level === "error" ? <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> :
+                 w.level === "warn" ? <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /> :
+                 <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+                <span className="flex-1">{w.message}</span>
+                <button
+                  onClick={() => dismissWarning(w.message)}
+                  className={cn(
+                    "flex-shrink-0 rounded p-0.5 transition-colors",
+                    w.level === "error" ? "hover:bg-red-200/60 text-red-400 hover:text-red-600" :
+                    w.level === "warn" ? "hover:bg-amber-200/60 text-amber-400 hover:text-amber-600" :
+                    "hover:bg-blue-200/60 text-blue-400 hover:text-blue-600"
+                  )}
+                  title="Dismiss warning"
+                  aria-label="Dismiss warning"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
         </div>
       )}
 
