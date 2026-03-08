@@ -45,9 +45,9 @@
 - [x] server/plans.billing.test.ts — tier gating logic tests (8 tests)
 
 ## Pending (requires Stripe Dashboard setup)
-- [ ] Create real Stripe products and add price IDs to env (STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO)
-- [ ] Claim Stripe sandbox at https://dashboard.stripe.com/claim_sandbox/...
-- [ ] Test end-to-end checkout with card 4242 4242 4242 4242
+- [x] Create real Stripe products and add price IDs to env (STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO)
+- [x] Claim Stripe sandbox
+- [ ] Test end-to-end checkout with card 4242 4242 4242 4242 (ready to test)
 
 ## Beta / Test Phase
 - [x] Set default planTier to "pro" for all new sign-ups
@@ -122,7 +122,7 @@
 
 ### Stripe / Billing Updates
 - [x] Update server/products.ts: Basic $2.99/mo, Pro $4.99/mo
-- [ ] Create real Stripe products (Basic $2.99, Pro $4.99) and set STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO
+- [x] Create real Stripe products (Basic $2.99, Pro $4.99) and set STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO
 - [x] Update Billing page: show $2.99 Basic / $4.99 Pro pricing
 - [x] Update Billing page: show full feature comparison table from TIER_SPEC.md
 
