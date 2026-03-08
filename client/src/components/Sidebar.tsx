@@ -3,14 +3,18 @@
  * Design: "Horizon" — Warm Modernist Financial Planning
  * Forest green sidebar with warm off-white text, Playfair Display headings
  *
- * Uses wouter's useLocation for URL-based active state so the correct
- * item is highlighted on refresh and direct links.
+ * Layout:
+ *  1. Brand logo
+ *  2. User data section (profile + CloudSync + Import/Export when signed in;
+ *     sign-in prompt + Import/Export when signed out)
+ *  3. Navigation
+ *  4. Footer (Reset + Beta badge + local note)
  */
 
 import CloudSync from "@/components/CloudSync";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { cn } from "@/lib/utils";
-import { UserButton, useUser } from "@clerk/react";
+import { SignInButton, UserButton, useUser } from "@clerk/react";
 import {
   BarChart3,
   BookOpen,
@@ -22,6 +26,7 @@ import {
   GitCompare,
   Home,
   Layers,
+  LogIn,
   PiggyBank,
   RotateCcw,
   Settings2,
@@ -113,6 +118,28 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const isActive = (path: string) =>
     location === path || (location === "/" && path === "/overview");
 
+  /** Compact Import / Export row — always visible regardless of auth state */
+  const ImportExportRow = (
+    <div className="grid grid-cols-2 gap-1.5 mt-2">
+      <button
+        onClick={exportPlan}
+        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+        title="Export plan (.json)"
+      >
+        <Download className="w-3 h-3 flex-shrink-0" />
+        Export
+      </button>
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+        title="Import plan (.json)"
+      >
+        <Upload className="w-3 h-3 flex-shrink-0" />
+        Import
+      </button>
+    </div>
+  );
+
   return (
     <aside
       className={cn(
@@ -120,44 +147,72 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         className
       )}
     >
-      {/* Logo / Brand */}
+      {/* ── Brand ─────────────────────────────────────────────────────────── */}
       <div className="px-6 py-5 border-b border-white/10">
         <Link href="/overview" onClick={onNavigate} className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-[#D97706] flex items-center justify-center flex-shrink-0">
             <TrendingUp className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <h1 className="font-bold text-sm leading-tight tracking-wide text-white">
-              Retirement
-            </h1>
-            <p className="text-[10px] text-white/50 uppercase tracking-widest">Planner</p>
-          </div>
+          <h1 className="font-bold text-sm leading-tight tracking-wide text-white">
+            Project Retire
+          </h1>
         </Link>
       </div>
 
-      {/* User profile strip (when signed in) */}
-      {isSignedIn && user && (
-        <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2.5">
-          <UserButton
-            appearance={{
-              elements: {
-                avatarBox: "w-7 h-7",
-                userButtonPopoverCard: "shadow-xl",
-              },
-            }}
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-white/90 truncate">
-              {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
-            </p>
-            <p className="text-[9px] text-white/40 truncate">
-              {user.primaryEmailAddress?.emailAddress}
-            </p>
-          </div>
-        </div>
-      )}
+      {/* ── User data section ─────────────────────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-white/10 space-y-0">
+        {isSignedIn && user ? (
+          <>
+            {/* Profile row */}
+            <div className="flex items-center gap-2.5">
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "w-7 h-7",
+                    userButtonPopoverCard: "shadow-xl",
+                  },
+                }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white/90 truncate">
+                  {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
+                </p>
+                <p className="text-[9px] text-white/40 truncate">
+                  {user.primaryEmailAddress?.emailAddress}
+                </p>
+              </div>
+            </div>
 
-      {/* Navigation */}
+            {/* Cloud Sync (auto-save status + save/load buttons) */}
+            <div className="mt-2">
+              <CloudSync />
+            </div>
+
+            {/* Import / Export */}
+            {ImportExportRow}
+          </>
+        ) : (
+          <>
+            {/* Sign-in prompt */}
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] text-white/50 leading-snug">
+                Sign in to sync your plan across devices.
+              </p>
+              <SignInButton mode="modal">
+                <button className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#D97706] text-white text-[11px] font-semibold hover:bg-[#B45309] transition-colors">
+                  <LogIn className="w-3 h-3" />
+                  Sign in
+                </button>
+              </SignInButton>
+            </div>
+
+            {/* Import / Export still available without account */}
+            {ImportExportRow}
+          </>
+        )}
+      </div>
+
+      {/* ── Navigation ────────────────────────────────────────────────────── */}
       <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title}>
@@ -209,38 +264,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-4 border-t border-white/10 space-y-2">
-        {/* Cloud Sync */}
-        <CloudSync />
-
-        {/* Import / Export — merged into one compact row */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            onClick={exportPlan}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-            title="Export plan (.json)"
-          >
-            <Download className="w-3.5 h-3.5 flex-shrink-0" />
-            Export
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-            title="Import plan (.json)"
-          >
-            <Upload className="w-3.5 h-3.5 flex-shrink-0" />
-            Import
-          </button>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          className="hidden"
-          onChange={handleImport}
-        />
-
+      {/* ── Footer ────────────────────────────────────────────────────────── */}
+      <div className="px-4 py-3 border-t border-white/10 space-y-2">
         {/* Reset */}
         <button
           onClick={handleReset}
@@ -267,6 +292,15 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           Values auto-saved locally in your browser.
         </p>
       </div>
+
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={handleImport}
+      />
     </aside>
   );
 }

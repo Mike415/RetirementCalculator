@@ -57,3 +57,6 @@
 ## Sidebar UX
 - [x] Merge Import and Export into a single compact row with two icon buttons
 - [x] Move "Not financial advice" disclaimer from sidebar to Overview page
+- [ ] Move Import/Export/CloudSync under user profile strip; show sign-in prompt for unauthenticated users
+- [x] Rename app to "Project Retire" across sidebar, page title, HTML title, welcome modal
+- [x] Restructure sidebar: move Import/Export/CloudSync under user profile strip (with signed-out state)
