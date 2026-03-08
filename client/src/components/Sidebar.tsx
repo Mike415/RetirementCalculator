@@ -366,46 +366,48 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 );
               })}
 
-              {/* Account section: Import / Export / Reset / Sign Out action buttons */}
+              {/* Account section: Export / Import / Reset / Sign Out action buttons */}
               {section.title === "Account" && (
                 <div className="mt-1 space-y-0.5">
-                  {/* Import / Export row */}
-                  <div className="grid grid-cols-2 gap-1 px-1">
-                    <button
-                      onClick={exportPlan}
-                      className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
-                      title="Export plan (.json)"
-                    >
-                      <Download className="w-3.5 h-3.5 flex-shrink-0" />
-                      Export
-                    </button>
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
-                      title="Import plan (.json)"
-                    >
-                      <Upload className="w-3.5 h-3.5 flex-shrink-0" />
-                      Import
-                    </button>
-                  </div>
-
-                  {/* Reset to defaults */}
+                  {/* Export — full-width row */}
                   <button
-                    onClick={handleReset}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
-                      confirming
-                        ? "bg-red-500/15 text-red-300"
-                        : "text-white/50 hover:bg-white/8 hover:text-white/80"
-                    )}
+                    onClick={exportPlan}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
+                    title="Export plan (.json)"
                   >
-                    <RotateCcw className={cn("w-4 h-4 flex-shrink-0", confirming ? "text-red-400" : "text-white/40")} />
-                    <span className="flex-1 truncate">
-                      {confirming ? "Click again to confirm" : "Reset to defaults"}
-                    </span>
+                    <Download className="w-4 h-4 flex-shrink-0 text-white/50" />
+                    <span className="flex-1 truncate">Export Plan</span>
                   </button>
 
-                  {/* Sign out (only when signed in) */}
+                  {/* Import — full-width row */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/65 hover:bg-white/8 hover:text-white/90 transition-all duration-150"
+                    title="Import plan (.json)"
+                  >
+                    <Upload className="w-4 h-4 flex-shrink-0 text-white/50" />
+                    <span className="flex-1 truncate">Import Plan</span>
+                  </button>
+
+                  {/* Reset to defaults — only shown when NOT signed in */}
+                  {!isSignedIn && (
+                    <button
+                      onClick={handleReset}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                        confirming
+                          ? "bg-red-500/15 text-red-300"
+                          : "text-white/50 hover:bg-white/8 hover:text-white/80"
+                      )}
+                    >
+                      <RotateCcw className={cn("w-4 h-4 flex-shrink-0", confirming ? "text-red-400" : "text-white/40")} />
+                      <span className="flex-1 truncate">
+                        {confirming ? "Click again to confirm" : "Reset to defaults"}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Sign out — only when signed in */}
                   {isSignedIn && (
                     <button
                       onClick={() => signOut()}
