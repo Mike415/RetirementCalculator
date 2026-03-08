@@ -726,6 +726,9 @@ export default function Admin() {
             <div>role: {debugInfo.role ?? "null"}</div>
             <div>dbAvailable: {String((debugInfo as any).dbAvailable)}</div>
             <div>hasDatabaseUrl: {String((debugInfo as any).hasDatabaseUrl)}</div>
+            <div>databaseName: {String((debugInfo as any).databaseName)}</div>
+            <div>directLookup: {JSON.stringify((debugInfo as any).directLookup)}</div>
+            <div>lookupError: {String((debugInfo as any).lookupError)}</div>
           </div>
         )}
       </div>

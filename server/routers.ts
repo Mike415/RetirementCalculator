@@ -33,6 +33,23 @@ export const appRouter = router({
     /** Debug: return raw auth context info (clerkUserId + user presence). Remove after debugging. */
     debug: publicProcedure.query(async (opts) => {
       const dbInstance = await getDb();
+      let directLookup: { found: boolean; id?: number; email?: string | null; role?: string | null; openId?: string | null } | null = null;
+      let lookupError: string | null = null;
+      let databaseName = 'unknown';
+      try {
+        const u = new URL(process.env.DATABASE_URL ?? '');
+        databaseName = u.pathname.replace('/', '');
+      } catch { /* ignore */ }
+      if (dbInstance && opts.ctx.clerkUserId) {
+        try {
+          const user = await db.getUserByOpenId(opts.ctx.clerkUserId);
+          directLookup = user
+            ? { found: true, id: user.id, email: user.email, role: user.role, openId: user.openId }
+            : { found: false };
+        } catch (e: any) {
+          lookupError = String(e?.message ?? e);
+        }
+      }
       return {
         clerkUserId: opts.ctx.clerkUserId,
         userId: opts.ctx.user?.id ?? null,
@@ -41,6 +58,9 @@ export const appRouter = router({
         hasAuthHeader: !!opts.ctx.req.headers.authorization,
         dbAvailable: !!dbInstance,
         hasDatabaseUrl: !!process.env.DATABASE_URL,
+        databaseName,
+        directLookup,
+        lookupError,
       };
     }),
   }),
