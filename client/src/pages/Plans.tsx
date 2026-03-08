@@ -1,552 +1,592 @@
 /**
- * Plans — Manage saved retirement plans
- * Lists all cloud-saved plans with rename, delete, load, and create actions.
- * Requires sign-in; shows a prompt for signed-out users.
+ * Manage Plans — Active Plan model
+ *
+ * - Each plan card shows name, last-saved timestamp, and action buttons
+ * - The active plan (tracked via cloudPlanId) has a green "Active" badge
+ * - "New Plan" modal lets you start blank or fork the current active plan
+ * - Fork any existing plan via the copy button on its card
+ * - Plan limit progress bar shows usage vs. tier cap
+ * - Rename inline with double-click or pencil icon
+ * - Delete with a two-click confirmation
  */
 
-import { useState } from "react";
-import { useUser, SignInButton } from "@clerk/react";
-import { trpc } from "@/lib/trpc";
+import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { usePlanner } from "@/contexts/PlannerContext";
-import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import { SignInButton, useUser } from "@clerk/react";
 import {
-  Cloud,
-  CloudDownload,
+  CheckCircle2,
+  Clock,
+  Copy,
   FilePlus2,
+  FolderOpen,
   LogIn,
-  MoreHorizontal,
   Pencil,
+  Plus,
   Trash2,
-  Check,
   X,
   Loader2,
-  FolderOpen,
-  Clock,
-  Star,
+  Cloud,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-const CLOUD_PLAN_NAME = "My Retirement Plan";
 const SCENARIOS_KEY = "retirement-planner-scenarios-v1";
 
-function formatDate(dateStr: string | Date | null | undefined): string {
-  if (!dateStr) return "Never";
-  const d = new Date(dateStr);
+// Tier limits (mirrors server/routers.ts MAX_PLANS)
+const MAX_PLANS: Record<string, number> = { free: 0, basic: 1, pro: 10 };
+const BETA_MAX = 10; // during beta all users get pro-level access
+
+type PlanMeta = {
+  id: number;
+  name: string;
+  createdAt: Date | string | null;
+  updatedAt: Date | string | null;
+};
+
+function timeAgo(date: Date | string | null | undefined): string {
+  if (!date) return "Never saved";
+  const d = new Date(date as string);
   if (isNaN(d.getTime())) return "Unknown";
-  return d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-interface PlanRowProps {
-  plan: {
-    id: number;
-    name: string;
-    updatedAt: Date | string | null;
-    createdAt: Date | string | null;
-  };
+// ── Plan Card ─────────────────────────────────────────────────────────────────
+function PlanCard({
+  plan,
+  isActive,
+  onLoad,
+  onRename,
+  onDelete,
+  onFork,
+  loading,
+}: {
+  plan: PlanMeta;
   isActive: boolean;
-  onLoad: (planId: number) => void;
-  onRename: (planId: number, newName: string) => void;
-  onDelete: (planId: number, name: string) => void;
+  onLoad: () => void;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+  onFork: () => void;
   loading: boolean;
-}
-
-function PlanRow({ plan, isActive, onLoad, onRename, onDelete, loading }: PlanRowProps) {
+}) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(plan.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleRenameSubmit = () => {
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const commitRename = () => {
     const trimmed = editName.trim();
-    if (!trimmed || trimmed === plan.name) {
-      setEditing(false);
-      setEditName(plan.name);
-      return;
-    }
-    onRename(plan.id, trimmed);
+    if (trimmed && trimmed !== plan.name) onRename(trimmed);
+    else setEditName(plan.name);
     setEditing(false);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleRenameSubmit();
-    if (e.key === "Escape") {
-      setEditing(false);
-      setEditName(plan.name);
+  const handleDeleteClick = () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
+    } else {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      onDelete();
     }
   };
 
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all",
+        "group relative bg-white rounded-2xl border shadow-sm p-5 transition-all duration-150",
         isActive
-          ? "bg-[#1B4332]/5 border-[#1B4332]/20"
-          : "bg-white border-stone-200 hover:border-stone-300 hover:shadow-sm"
+          ? "border-emerald-300 ring-1 ring-emerald-100"
+          : "border-slate-100 hover:border-slate-200 hover:shadow-md"
       )}
     >
-      {/* Icon */}
-      <div
-        className={cn(
-          "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
-          isActive ? "bg-[#1B4332]/10" : "bg-stone-100"
+      {/* Active badge */}
+      {isActive && (
+        <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wide">
+          <CheckCircle2 className="w-3 h-3" />
+          Active
+        </div>
+      )}
+
+      {/* Plan name */}
+      <div className="flex items-center gap-2 mb-1 pr-20">
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") { setEditName(plan.name); setEditing(false); }
+            }}
+            className="flex-1 text-sm font-semibold text-slate-800 bg-transparent border-b-2 border-emerald-400 outline-none pb-0.5"
+          />
+        ) : (
+          <h3
+            className="flex-1 text-sm font-semibold text-slate-800 truncate cursor-pointer"
+            onDoubleClick={() => setEditing(true)}
+            title="Double-click to rename"
+          >
+            {plan.name}
+          </h3>
         )}
-      >
-        <FolderOpen
-          className={cn("w-4.5 h-4.5", isActive ? "text-[#1B4332]" : "text-stone-400")}
-        />
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-400 hover:text-slate-600 transition-all"
+            title="Rename"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
-      {/* Name + meta */}
-      <div className="flex-1 min-w-0">
-        {editing ? (
-          <div className="flex items-center gap-1.5">
-            <input
-              autoFocus
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 text-sm font-medium bg-white border border-[#1B4332]/30 rounded-md px-2 py-0.5 outline-none focus:ring-1 focus:ring-[#1B4332]/40 text-stone-800"
-              maxLength={255}
-            />
-            <button
-              onClick={handleRenameSubmit}
-              className="p-1 rounded text-emerald-600 hover:bg-emerald-50"
-            >
-              <Check className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => {
-                setEditing(false);
-                setEditName(plan.name);
-              }}
-              className="p-1 rounded text-stone-400 hover:bg-stone-100"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-stone-800 truncate">{plan.name}</p>
-            {isActive && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#1B4332] text-white uppercase tracking-wide flex-shrink-0">
-                Active
-              </span>
-            )}
-          </div>
+      {/* Last saved */}
+      <p className="flex items-center gap-1 text-[11px] text-slate-400 mb-4">
+        <Clock className="w-3 h-3" />
+        {timeAgo(plan.updatedAt)}
+        {plan.updatedAt && (
+          <span className="text-slate-300 ml-1">
+            · {new Date(plan.updatedAt as string).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          </span>
         )}
-        <div className="flex items-center gap-1 mt-0.5">
-          <Clock className="w-3 h-3 text-stone-300 flex-shrink-0" />
-          <p className="text-[11px] text-stone-400 truncate">
-            Last saved {formatDate(plan.updatedAt)}
-          </p>
-        </div>
-      </div>
+      </p>
 
       {/* Actions */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {!isActive && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs gap-1 text-stone-600 border-stone-200 hover:border-[#1B4332]/30 hover:text-[#1B4332]"
-            onClick={() => onLoad(plan.id)}
+      <div className="flex items-center gap-2">
+        {isActive ? (
+          <div className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Currently active — auto-saving
+          </div>
+        ) : (
+          <button
+            onClick={onLoad}
             disabled={loading}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#1B4332] text-white text-xs font-semibold hover:bg-[#2D6A4F] transition-colors disabled:opacity-50"
           >
             {loading ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <CloudDownload className="w-3 h-3" />
+              <FolderOpen className="w-3.5 h-3.5" />
             )}
             Load
-          </Button>
+          </button>
         )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="p-1.5 rounded-lg text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition-colors">
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem onClick={() => setEditing(true)}>
-              <Pencil className="w-3.5 h-3.5 mr-2" />
-              Rename
-            </DropdownMenuItem>
-            {!isActive && (
-              <DropdownMenuItem onClick={() => onLoad(plan.id)}>
-                <CloudDownload className="w-3.5 h-3.5 mr-2" />
-                Load plan
-              </DropdownMenuItem>
+        <button
+          onClick={onFork}
+          className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          title="Fork (duplicate) this plan"
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={handleDeleteClick}
+          className={cn(
+            "p-2 rounded-xl transition-colors",
+            confirmDelete
+              ? "bg-red-100 text-red-600 hover:bg-red-200"
+              : "text-slate-400 hover:bg-red-50 hover:text-red-500"
+          )}
+          title={confirmDelete ? "Click again to confirm delete" : "Delete plan"}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {confirmDelete && (
+        <p className="text-[10px] text-red-500 mt-2 text-center font-medium animate-pulse">
+          Click trash again to permanently delete
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── New Plan Modal ────────────────────────────────────────────────────────────
+function NewPlanModal({
+  onClose,
+  onCreateBlank,
+  onForkCurrent,
+}: {
+  onClose: () => void;
+  onCreateBlank: (name: string) => void;
+  onForkCurrent: (name: string) => void;
+}) {
+  const [name, setName] = useState("My Retirement Plan");
+  const [mode, setMode] = useState<"fork" | "blank">("fork");
+
+  const handleCreate = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (mode === "blank") onCreateBlank(trimmed);
+    else onForkCurrent(trimmed);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-bold text-slate-800">New Plan</h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Mode selector */}
+        <div className="grid grid-cols-2 gap-2 mb-5">
+          <button
+            onClick={() => setMode("fork")}
+            className={cn(
+              "flex flex-col items-center gap-1.5 p-3.5 rounded-xl border text-xs font-medium transition-all",
+              mode === "fork"
+                ? "border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm"
+                : "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
             )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-red-600 focus:text-red-600 focus:bg-red-50"
-              onClick={() => onDelete(plan.id, plan.name)}
-            >
-              <Trash2 className="w-3.5 h-3.5 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          >
+            <Copy className="w-5 h-5" />
+            <span>Fork current plan</span>
+            <span className="text-[10px] font-normal text-slate-400 text-center leading-tight">
+              Copy of what's open now
+            </span>
+          </button>
+          <button
+            onClick={() => setMode("blank")}
+            className={cn(
+              "flex flex-col items-center gap-1.5 p-3.5 rounded-xl border text-xs font-medium transition-all",
+              mode === "blank"
+                ? "border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm"
+                : "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
+            )}
+          >
+            <FilePlus2 className="w-5 h-5" />
+            <span>Start blank</span>
+            <span className="text-[10px] font-normal text-slate-400 text-center leading-tight">
+              Default inputs
+            </span>
+          </button>
+        </div>
+
+        {/* Name input */}
+        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Plan name</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleCreate();
+            if (e.key === "Escape") onClose();
+          }}
+          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-colors mb-5"
+          placeholder="e.g. Early Retirement Scenario"
+          maxLength={255}
+        />
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={!name.trim()}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-[#1B4332] text-white text-sm font-semibold hover:bg-[#2D6A4F] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Create plan
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Plans() {
   const { isSignedIn, isLoaded } = useUser();
   const { inputs, importFromObject } = usePlanner();
+  const { cloudPlanId, doSave } = useCloudSyncContext();
+  const [showNewModal, setShowNewModal] = useState(false);
   const [loadingPlanId, setLoadingPlanId] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [newPlanName, setNewPlanName] = useState("");
 
   const utils = trpc.useUtils();
   const plansQuery = trpc.plans.list.useQuery(undefined, {
     enabled: Boolean(isSignedIn),
     retry: false,
   });
-
-  const getPlan = trpc.plans.get.useQuery(
-    { planId: loadingPlanId! },
-    { enabled: loadingPlanId !== null && isSignedIn === true, retry: false }
-  );
-
-  const savePlan = trpc.plans.save.useMutation({
-    onSuccess: () => utils.plans.list.invalidate(),
+  const userProfile = trpc.user.profile.useQuery(undefined, {
+    enabled: Boolean(isSignedIn),
+    retry: false,
   });
 
   const createPlan = trpc.plans.create.useMutation({
-    onSuccess: () => {
-      utils.plans.list.invalidate();
-      setCreating(false);
-      setNewPlanName("");
-      toast.success("New plan created!");
-    },
-    onError: (err) => {
-      toast.error(err.message ?? "Failed to create plan.");
-    },
+    onSuccess: () => utils.plans.list.invalidate(),
   });
-
+  const savePlan = trpc.plans.save.useMutation({
+    onSuccess: () => utils.plans.list.invalidate(),
+  });
   const deletePlan = trpc.plans.delete.useMutation({
-    onSuccess: () => {
-      utils.plans.list.invalidate();
-      toast.success("Plan deleted.");
-      setDeleteTarget(null);
-    },
-    onError: (err) => {
-      toast.error(err.message ?? "Failed to delete plan.");
-      setDeleteTarget(null);
-    },
+    onSuccess: () => utils.plans.list.invalidate(),
   });
 
-  const renamePlan = trpc.plans.save.useMutation({
-    onSuccess: () => {
-      utils.plans.list.invalidate();
-      toast.success("Plan renamed.");
-    },
-    onError: (err) => toast.error(err.message ?? "Failed to rename plan."),
-  });
+  const plansList = plansQuery.data ?? [];
+  const tier = userProfile.data?.planTier ?? "basic";
+  const maxPlans = Math.max(MAX_PLANS[tier] ?? 1, BETA_MAX);
+  const usedPlans = plansList.length;
+  const canCreate = usedPlans < maxPlans;
 
-  // Load plan data when loadingPlanId changes
-  const [activePlanId, setActivePlanId] = useState<number | null>(null);
+  // ── Load a plan into the active session ────────────────────────────────────
+  const handleLoad = async (plan: PlanMeta) => {
+    setLoadingPlanId(plan.id);
+    try {
+      const full = await utils.plans.get.fetch({ planId: plan.id });
+      const data = full.data as Record<string, unknown> | null;
+      if (!data) { toast.error("Plan has no saved data."); return; }
 
-  // When getPlan data arrives, import it
-  const [pendingLoad, setPendingLoad] = useState(false);
-  if (pendingLoad && getPlan.data && !getPlan.isLoading) {
-    const planData = getPlan.data.data as Record<string, unknown> | null;
-    if (planData) {
-      try {
-        // CloudSync saves as { _version, _exported, inputs, scenarios }
-        // importFromObject expects the full payload object
-        const result = importFromObject(planData);
-        if (result.ok) {
-          if (planData.scenarios && typeof window !== "undefined") {
-            try {
-              localStorage.setItem(SCENARIOS_KEY, JSON.stringify(planData.scenarios));
-            } catch {}
-          }
-          setActivePlanId(loadingPlanId);
-          toast.success(`"${getPlan.data.name}" loaded successfully!`);
-        } else {
-          toast.error(result.error ?? "Failed to load plan data.");
-        }
-      } catch {
-        toast.error("Failed to load plan data.");
+      const result = importFromObject(data);
+      if (!result.ok) { toast.error(result.error ?? "Failed to load plan."); return; }
+
+      if (Array.isArray(data.scenarios)) {
+        try {
+          localStorage.setItem(SCENARIOS_KEY, JSON.stringify(data.scenarios));
+          window.dispatchEvent(new StorageEvent("storage", {
+            key: SCENARIOS_KEY,
+            newValue: JSON.stringify(data.scenarios),
+            storageArea: localStorage,
+          }));
+        } catch { /* ignore */ }
       }
+      toast.success(`"${plan.name}" loaded!`);
+    } catch {
+      toast.error("Failed to load plan.");
+    } finally {
+      setLoadingPlanId(null);
     }
-    setPendingLoad(false);
-    setLoadingPlanId(null);
-  }
-
-  const handleLoad = (planId: number) => {
-    setLoadingPlanId(planId);
-    setPendingLoad(true);
   };
 
-  const handleRename = (planId: number, newName: string) => {
-    // Get current data for the plan to avoid overwriting it with undefined
-    const plan = planList.find((p) => p.id === planId);
-    renamePlan.mutate({ planId, name: newName, data: plan ?? {} });
+  // ── Rename a plan ──────────────────────────────────────────────────────────
+  const handleRename = async (planId: number, name: string) => {
+    try {
+      const full = await utils.plans.get.fetch({ planId });
+      await savePlan.mutateAsync({ planId, data: full.data, name });
+      toast.success("Plan renamed.");
+    } catch {
+      toast.error("Failed to rename plan.");
+    }
   };
 
-  const handleDelete = (planId: number, name: string) => {
-    setDeleteTarget({ id: planId, name });
+  // ── Delete a plan ──────────────────────────────────────────────────────────
+  const handleDelete = async (planId: number) => {
+    await deletePlan.mutateAsync({ planId });
+    toast.success("Plan deleted.");
   };
 
-  const handleCreatePlan = () => {
-    const name = newPlanName.trim() || `Plan ${(plansQuery.data?.length ?? 0) + 1}`;
-    // Capture current plan data
-    const scenarios = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(SCENARIOS_KEY) ?? "[]");
-      } catch {
-        return [];
+  // ── Fork a specific plan ───────────────────────────────────────────────────
+  const handleForkPlan = async (sourcePlanId: number, newName: string) => {
+    if (!canCreate) { toast.error(`You've reached the ${maxPlans}-plan limit.`); return; }
+    try {
+      const full = await utils.plans.get.fetch({ planId: sourcePlanId });
+      await createPlan.mutateAsync({ name: newName, data: full.data });
+      toast.success(`"${newName}" created as a fork.`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to fork plan.");
+    }
+  };
+
+  // ── Create blank plan ──────────────────────────────────────────────────────
+  const handleCreateBlank = async (name: string) => {
+    if (!canCreate) { toast.error(`You've reached the ${maxPlans}-plan limit.`); return; }
+    try {
+      const payload = { _version: 2, _exported: new Date().toISOString(), inputs: {}, scenarios: [] };
+      await createPlan.mutateAsync({ name, data: payload });
+      toast.success(`"${name}" created.`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to create plan.");
+    }
+  };
+
+  // ── Fork current active plan ───────────────────────────────────────────────
+  const handleForkCurrent = async (name: string) => {
+    if (!canCreate) { toast.error(`You've reached the ${maxPlans}-plan limit.`); return; }
+    try {
+      // First flush the current state to the cloud so the fork is up to date
+      await doSave(true);
+      if (cloudPlanId) {
+        await handleForkPlan(cloudPlanId, name);
+      } else {
+        // No cloud plan yet — create directly from current inputs
+        const raw = localStorage.getItem(SCENARIOS_KEY);
+        const scenarios = raw ? JSON.parse(raw) : [];
+        const payload = { _version: 2, _exported: new Date().toISOString(), inputs, scenarios };
+        await createPlan.mutateAsync({ name, data: payload });
+        toast.success(`"${name}" created from current inputs.`);
       }
-    })();
-    createPlan.mutate({
-      name,
-      data: {
-        _version: 2,
-        _exported: new Date().toISOString(),
-        inputs,
-        scenarios,
-      },
-    });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to fork plan.");
+    }
   };
 
-  const handleSaveCurrentAs = (planId: number) => {
-    const scenarios = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(SCENARIOS_KEY) ?? "[]");
-      } catch {
-        return [];
-      }
-    })();
-    savePlan.mutate(
-      { planId, data: { _version: 2, _exported: new Date().toISOString(), inputs, scenarios } },
-      {
-        onSuccess: () => toast.success("Plan saved!"),
-        onError: (err) => toast.error(err.message ?? "Failed to save."),
-      }
-    );
-  };
-
-  // ── Not loaded ──────────────────────────────────────────────────────────────
+  // ── Not loaded ─────────────────────────────────────────────────────────────
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-stone-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
       </div>
     );
   }
 
-  // ── Signed out ──────────────────────────────────────────────────────────────
+  // ── Signed out ─────────────────────────────────────────────────────────────
   if (!isSignedIn) {
     return (
-      <div className="max-w-xl mx-auto">
-        <div className="mb-6">
-          <h1
-            className="text-2xl font-bold text-stone-800 mb-1"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            My Plans
-          </h1>
-          <p className="text-stone-500 text-sm">Manage your saved retirement plans.</p>
+      <div className="max-w-md mx-auto mt-16 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto">
+          <Cloud className="w-7 h-7 text-slate-300" />
         </div>
-        <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center">
-          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
-            <Cloud className="w-6 h-6 text-stone-400" />
-          </div>
-          <h2 className="text-base font-semibold text-stone-700 mb-2">Sign in to manage plans</h2>
-          <p className="text-sm text-stone-400 mb-5 leading-relaxed">
-            Create an account to save multiple retirement scenarios to the cloud and access them
-            from any device.
-          </p>
-          <SignInButton mode="modal">
-            <Button className="bg-[#D97706] hover:bg-[#B45309] text-white gap-2">
-              <LogIn className="w-4 h-4" />
-              Sign in to get started
-            </Button>
-          </SignInButton>
-        </div>
+        <h1 className="text-xl font-bold text-slate-700">My Plans</h1>
+        <p className="text-sm text-slate-500 leading-relaxed">
+          Sign in to save multiple retirement scenarios to the cloud and switch between them at any time.
+        </p>
+        <SignInButton mode="modal">
+          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1B4332] text-white text-sm font-semibold hover:bg-[#2D6A4F] transition-colors">
+            <LogIn className="w-4 h-4" />
+            Sign in to get started
+          </button>
+        </SignInButton>
       </div>
     );
   }
 
-  const planList = plansQuery.data ?? [];
-  const isLoading = plansQuery.isLoading;
-  const maxPlans = 10; // Pro tier during beta
-
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="space-y-6 max-w-3xl">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1
-            className="text-2xl font-bold text-stone-800 mb-1"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            My Plans
-          </h1>
-          <p className="text-stone-500 text-sm">
-            {planList.length} of {maxPlans} plans used
+          <h1 className="text-2xl font-bold text-slate-800">My Plans</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Save different scenarios and switch between them at any time.
           </p>
         </div>
-        <Button
-          onClick={() => setCreating(true)}
-          disabled={planList.length >= maxPlans || creating}
-          className="bg-[#1B4332] hover:bg-[#145229] text-white gap-2 text-sm"
-          size="sm"
+        <button
+          onClick={() => setShowNewModal(true)}
+          disabled={!canCreate}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1B4332] text-white text-sm font-semibold hover:bg-[#2D6A4F] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+          title={!canCreate ? `Plan limit reached (${maxPlans})` : "Create a new plan"}
         >
-          <FilePlus2 className="w-4 h-4" />
-          Save current as new plan
-        </Button>
+          <Plus className="w-4 h-4" />
+          New plan
+        </button>
       </div>
 
-      {/* Create new plan form */}
-      {creating && (
-        <div className="mb-4 p-4 rounded-xl border border-[#1B4332]/20 bg-[#1B4332]/5">
-          <p className="text-sm font-medium text-stone-700 mb-2">Name your new plan</p>
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              value={newPlanName}
-              onChange={(e) => setNewPlanName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreatePlan();
-                if (e.key === "Escape") {
-                  setCreating(false);
-                  setNewPlanName("");
-                }
-              }}
-              placeholder={`Plan ${planList.length + 1}`}
-              className="flex-1 text-sm bg-white border border-stone-200 rounded-lg px-3 py-1.5 outline-none focus:ring-1 focus:ring-[#1B4332]/40 text-stone-800"
-              maxLength={255}
-            />
-            <Button
-              size="sm"
-              onClick={handleCreatePlan}
-              disabled={createPlan.isPending}
-              className="bg-[#1B4332] hover:bg-[#145229] text-white"
-            >
-              {createPlan.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setCreating(false);
-                setNewPlanName("");
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-          <p className="text-[11px] text-stone-400 mt-1.5">
-            This will save a snapshot of your current plan inputs.
-          </p>
+      {/* Plan limit bar */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-slate-600">Plans used</span>
+          <span className="text-xs text-slate-500 tabular-nums">
+            {usedPlans} / {maxPlans}
+          </span>
         </div>
-      )}
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              usedPlans >= maxPlans
+                ? "bg-red-400"
+                : usedPlans >= maxPlans * 0.8
+                ? "bg-amber-400"
+                : "bg-emerald-500"
+            )}
+            style={{ width: `${Math.min(100, (usedPlans / maxPlans) * 100)}%` }}
+          />
+        </div>
+        {usedPlans >= maxPlans && (
+          <p className="text-[10px] text-red-500 mt-1.5 font-medium">
+            Plan limit reached. Delete a plan to create a new one.
+          </p>
+        )}
+      </div>
 
-      {/* Plan list */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-5 h-5 animate-spin text-stone-400" />
+      {/* Plans grid */}
+      {plansQuery.isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 animate-pulse">
+              <div className="h-4 bg-slate-100 rounded w-3/4 mb-2" />
+              <div className="h-3 bg-slate-100 rounded w-1/2 mb-4" />
+              <div className="h-9 bg-slate-100 rounded-xl" />
+            </div>
+          ))}
         </div>
-      ) : planList.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-10 text-center">
-          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
-            <FolderOpen className="w-6 h-6 text-stone-300" />
-          </div>
-          <p className="text-sm font-medium text-stone-500 mb-1">No saved plans yet</p>
-          <p className="text-xs text-stone-400 mb-4">
-            Click "Save current as new plan" to create your first cloud save.
+      ) : plansList.length === 0 ? (
+        <div className="text-center py-16 space-y-3 border border-dashed border-slate-200 rounded-2xl bg-slate-50">
+          <FolderOpen className="w-10 h-10 text-slate-200 mx-auto" />
+          <p className="text-sm font-semibold text-slate-500">No saved plans yet</p>
+          <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+            Your inputs are auto-saved continuously. Use "New plan" to create a named snapshot
+            or a what-if scenario you can come back to.
           </p>
-          <Button
-            size="sm"
-            onClick={() => setCreating(true)}
-            className="bg-[#1B4332] hover:bg-[#145229] text-white gap-2"
+          <button
+            onClick={() => setShowNewModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1B4332] text-white text-xs font-semibold hover:bg-[#2D6A4F] transition-colors"
           >
-            <FilePlus2 className="w-3.5 h-3.5" />
-            Save current plan
-          </Button>
+            <Plus className="w-3.5 h-3.5" />
+            Create first plan
+          </button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {planList.map((plan) => (
-            <PlanRow
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {plansList.map((plan) => (
+            <PlanCard
               key={plan.id}
               plan={plan}
-              isActive={plan.id === activePlanId}
-              onLoad={handleLoad}
-              onRename={handleRename}
-              onDelete={handleDelete}
-              loading={loadingPlanId === plan.id && getPlan.isLoading}
+              isActive={plan.id === cloudPlanId}
+              onLoad={() => handleLoad(plan)}
+              onRename={(name) => handleRename(plan.id, name)}
+              onDelete={() => handleDelete(plan.id)}
+              onFork={() => handleForkPlan(plan.id, `${plan.name} (copy)`)}
+              loading={loadingPlanId === plan.id}
             />
           ))}
         </div>
       )}
 
-      {/* Tip */}
-      {planList.length > 0 && (
-        <div className="mt-5 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
-          <Star className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-700 leading-relaxed">
-            <strong>Tip:</strong> Use multiple plans to compare scenarios — for example, "Retire at
-            60" vs. "Retire at 65". Load a plan to make it active, then use Cloud Sync to keep it
-            updated.
-          </p>
-        </div>
+      {/* Auto-save note */}
+      {plansList.length > 0 && (
+        <p className="text-xs text-slate-400 text-center pb-2">
+          Changes to the active plan are auto-saved every few seconds.
+          Use "New plan" to create a separate named snapshot or what-if scenario.
+        </p>
       )}
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this plan and all its version history. This action cannot
-              be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => deleteTarget && deletePlan.mutate({ planId: deleteTarget.id })}
-              disabled={deletePlan.isPending}
-            >
-              {deletePlan.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-              ) : null}
-              Delete plan
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* New Plan Modal */}
+      {showNewModal && (
+        <NewPlanModal
+          onClose={() => setShowNewModal(false)}
+          onCreateBlank={handleCreateBlank}
+          onForkCurrent={handleForkCurrent}
+        />
+      )}
     </div>
   );
 }

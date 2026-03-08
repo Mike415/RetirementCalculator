@@ -10,6 +10,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PlannerProvider } from "@/contexts/PlannerContext";
+import { CloudSyncProvider } from "@/contexts/CloudSyncContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Sidebar from "./components/Sidebar";
@@ -113,8 +114,10 @@ function App() {
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
             <PlannerProvider>
-              <Toaster />
-              <PlannerApp />
+              <CloudSyncProvider>
+                <Toaster />
+                <PlannerApp />
+              </CloudSyncProvider>
             </PlannerProvider>
           </TooltipProvider>
         </ThemeProvider>

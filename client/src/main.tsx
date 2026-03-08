@@ -57,9 +57,16 @@ function TrpcProvider({ children }: { children: React.ReactNode }) {
     if (!isLoaded) return; // Wait until Clerk has resolved
     if (prevIsSignedIn.current === isSignedIn) return; // No change
 
-    // Auth state changed (sign-in or sign-out) — invalidate all cached queries
-    // so components re-fetch with the new auth context
     if (prevIsSignedIn.current !== undefined) {
+      if (isSignedIn) {
+        // User just signed in via Clerk modal — do a full page reload so the
+        // session cookie is picked up cleanly and all queries re-fetch with
+        // the new auth context. This is the most reliable fix for the
+        // "must refresh after sign-in" bug with Clerk v6 modal mode.
+        window.location.reload();
+        return;
+      }
+      // User signed out — invalidate queries (no reload needed)
       queryClient.invalidateQueries();
     }
     prevIsSignedIn.current = isSignedIn;

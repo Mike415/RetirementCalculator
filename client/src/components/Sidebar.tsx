@@ -4,14 +4,14 @@
  *
  * Layout:
  *  1. Brand logo
- *  2. User strip — clicking the row toggles a dropdown with CloudSync + Import/Export
- *     (when signed out: compact sign-in prompt with same dropdown for Import/Export)
+ *  2. User strip — shows sync status dot + "Manage Plans" button
+ *     (signed out: compact sign-in prompt)
  *  3. Navigation
- *  4. Footer (Reset + Beta badge)
+ *  4. Footer (Beta badge)
  */
 
-import CloudSync from "@/components/CloudSync";
 import { usePlanner } from "@/contexts/PlannerContext";
+import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { cn } from "@/lib/utils";
 import { SignInButton, UserButton, useClerk, useUser } from "@clerk/react";
 import {
@@ -20,7 +20,6 @@ import {
   Briefcase,
   CalendarClock,
   ChevronDown,
-  CreditCard,
   DollarSign,
   Download,
   FolderOpen,
@@ -28,6 +27,7 @@ import {
   HelpCircle,
   Home,
   Layers,
+  Loader2,
   LogIn,
   LogOut,
   PiggyBank,
@@ -68,8 +68,6 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { path: "/plans", label: "My Plans", icon: FolderOpen },
       { path: "/faq",   label: "FAQ",      icon: HelpCircle },
-      // Billing & Plans hidden during beta — re-add when Stripe is live
-      // { path: "/billing", label: "Billing & Plans", icon: CreditCard },
     ],
   },
   {
@@ -94,13 +92,14 @@ interface SidebarProps {
 
 export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const { resetToDefaults, exportPlan, importPlan, inputs } = usePlanner();
+  const { status: syncStatus, lastSaved: syncLastSaved, activePlanName } = useCloudSyncContext();
   const [location] = useLocation();
   const [confirming, setConfirming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useClerk();
 
-  // Auto-open dropdown for signed-out users on first visit
+  // Dropdown state
   const hasSeenDropdown = useRef(
     typeof localStorage !== "undefined" && !!localStorage.getItem("rp_seen_dropdown")
   );
@@ -109,7 +108,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
     return !localStorage.getItem("rp_seen_dropdown");
   });
 
-  // Mark as seen when user explicitly interacts
   const toggleDropdown = () => {
     setDropdownOpen((o) => {
       const next = !o;
@@ -121,7 +119,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
     });
   };
 
-  // Once Clerk loads and user is signed in, close the auto-opened dropdown
+  // Close auto-opened dropdown once signed in
   useEffect(() => {
     if (isLoaded && isSignedIn && !hasSeenDropdown.current) {
       hasSeenDropdown.current = true;
@@ -129,15 +127,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       setDropdownOpen(false);
     }
   }, [isLoaded, isSignedIn]);
-
-  // Cloud sync status for the collapsed row indicator
-  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "loading" | "saved" | "error">("idle");
-  const [syncLastSaved, setSyncLastSaved] = useState<Date | null>(null);
-
-  const handleSyncStatusChange = (status: "idle" | "saving" | "loading" | "saved" | "error", lastSaved: Date | null) => {
-    setSyncStatus(status);
-    setSyncLastSaved(lastSaved);
-  };
 
   const handleReset = () => {
     if (!confirming) {
@@ -164,6 +153,16 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const isActive = (path: string) =>
     location === path || (location === "/" && path === "/overview");
 
+  // ── Sync status label ──────────────────────────────────────────────────────
+  const syncLabel = (() => {
+    if (syncStatus === "saving") return null; // shown via dot
+    if (syncStatus === "saved") return null;
+    if (syncLastSaved) {
+      return syncLastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return user?.primaryEmailAddress?.emailAddress ?? null;
+  })();
+
   return (
     <aside
       className={cn(
@@ -185,16 +184,15 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         </Link>
       </div>
 
-      {/* ── User strip + dropdown ──────────────────────────────────────────── */}
+      {/* ── User strip ────────────────────────────────────────────────────── */}
       <div className="border-b border-white/10">
         {isSignedIn && user ? (
           <>
-            {/* Clickable profile row */}
+            {/* Profile row */}
             <button
               onClick={toggleDropdown}
               className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
             >
-              {/* Stop click from bubbling to the button when Clerk popover opens */}
               <span onClick={(e) => e.stopPropagation()}>
                 <UserButton
                   appearance={{
@@ -209,26 +207,34 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 <p className="text-xs font-medium text-white/90 truncate">
                   {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
                 </p>
-                {/* Sync status indicator in collapsed row */}
-                {syncStatus === "saving" ? (
-                  <p className="text-[9px] text-white/40 flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                    Saving…
-                  </p>
-                ) : syncStatus === "saved" ? (
-                  <p className="text-[9px] text-emerald-400 flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    Saved
-                  </p>
-                ) : syncLastSaved ? (
-                  <p className="text-[9px] text-white/30 truncate">
-                    Saved {syncLastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                ) : (
-                  <p className="text-[9px] text-white/40 truncate">
-                    {user.primaryEmailAddress?.emailAddress}
-                  </p>
-                )}
+                {/* Active plan name + sync status dot */}
+                <p className="text-[9px] flex items-center gap-1 mt-0.5">
+                  {syncStatus === "saving" ? (
+                    <>
+                      <Loader2 className="w-2.5 h-2.5 text-amber-400 animate-spin" />
+                      <span className="text-amber-400/80">Saving…</span>
+                    </>
+                  ) : syncStatus === "saved" ? (
+                    <>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span className="text-emerald-400">Saved</span>
+                    </>
+                  ) : syncStatus === "error" ? (
+                    <>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400" />
+                      <span className="text-red-400">Sync error</span>
+                    </>
+                  ) : activePlanName ? (
+                    <>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/60 flex-shrink-0" />
+                      <span className="text-white/40 truncate">{activePlanName}</span>
+                    </>
+                  ) : syncLabel ? (
+                    <span className="text-white/30 truncate">{syncLabel}</span>
+                  ) : (
+                    <span className="text-white/30">Auto-saving</span>
+                  )}
+                </p>
               </div>
               <ChevronDown
                 className={cn(
@@ -242,12 +248,20 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
             <div
               className={cn(
                 "overflow-hidden transition-all duration-200 ease-in-out",
-                dropdownOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+                dropdownOpen ? "max-h-72 opacity-100" : "max-h-0 opacity-0"
               )}
             >
               <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
-                {/* Cloud Sync */}
-                <CloudSync onStatusChange={handleSyncStatusChange} />
+
+                {/* Manage Plans button */}
+                <Link
+                  href="/plans"
+                  onClick={() => { setDropdownOpen(false); onNavigate?.(); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-[#D97706]/15 text-[#D97706] border border-[#D97706]/25 hover:bg-[#D97706]/25 transition-colors"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                  Manage Plans
+                </Link>
 
                 {/* Import / Export */}
                 <div className="grid grid-cols-2 gap-1.5">
@@ -283,7 +297,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   {confirming ? "Click again to confirm" : "Reset to defaults"}
                 </button>
 
-                {/* Sign Out */}
+                {/* Sign out */}
                 <button
                   onClick={() => signOut()}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/40 border border-white/10 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all duration-150"
@@ -296,7 +310,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           </>
         ) : (
           <>
-            {/* Sign-in prompt row */}
+            {/* Signed-out prompt row */}
             <button
               onClick={toggleDropdown}
               className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
@@ -305,7 +319,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 <LogIn className="w-3.5 h-3.5 text-white/50" />
               </div>
               <p className="flex-1 text-left text-[11px] text-white/50 leading-snug">
-                Sign in to sync
+                Sign in to save your plan
               </p>
               <ChevronDown
                 className={cn(
@@ -315,7 +329,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
               />
             </button>
 
-            {/* Dropdown panel for signed-out state */}
+            {/* Signed-out dropdown */}
             <div
               className={cn(
                 "overflow-hidden transition-all duration-200 ease-in-out",
@@ -323,15 +337,13 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
               )}
             >
               <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
-                {/* Sign-in CTA */}
                 <SignInButton mode="modal">
                   <button className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D97706] text-white text-xs font-semibold hover:bg-[#B45309] transition-colors">
                     <LogIn className="w-3.5 h-3.5" />
-                    Sign in to sync your plan
+                    Sign in to save your plan
                   </button>
                 </SignInButton>
 
-                {/* Import / Export still available without account */}
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     onClick={exportPlan}
@@ -351,7 +363,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   </button>
                 </div>
 
-                {/* Reset to defaults */}
                 <button
                   onClick={handleReset}
                   className={cn(
@@ -424,7 +435,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       <div className="px-4 py-3 border-t border-white/10 space-y-2">
-        {/* Beta badge */}
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D97706]/15 border border-[#D97706]/25">
           <Sparkles className="w-3 h-3 text-[#D97706] flex-shrink-0" />
           <span className="text-[10px] font-semibold text-[#D97706]/90 leading-tight">

@@ -85,3 +85,15 @@
 - [x] SEO: add structured data (JSON-LD) for the app
 - [x] SEO: add robots.txt and sitemap.xml
 - [x] Make sidebar logo image larger
+
+## Auth & Cloud Sync Redesign
+- [ ] Fix sign-in refresh bug (app doesn't update state after Clerk sign-in without page reload)
+- [ ] Remove CloudSync widget from sidebar dropdown
+- [ ] Add silent auto-save indicator (sync dot + timestamp) to sidebar user strip
+- [ ] Add "Manage Plans" button directly in sidebar user strip
+- [ ] Replace on-login toast with persistent banner on Overview page
+
+## Active Plan Model Implementation
+- [x] Add on-login cloud plan banner to Overview page
+- [x] Rebuild Manage Plans page with plan cards, fork/create, active plan indicator, plan limit
+- [x] Track active plan name in useCloudSync and show it in sidebar user strip

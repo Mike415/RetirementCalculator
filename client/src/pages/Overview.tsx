@@ -4,10 +4,11 @@
  */
 
 import { usePlanner } from "@/contexts/PlannerContext";
+import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { formatCurrency, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle, X } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Loader2, Dices, CheckCircle2, AlertTriangle, XCircle, X, CloudDownload } from "lucide-react";
 import { useState, useMemo, useCallback } from "react";
 import { runMonteCarlo, MonteCarloResult, aggregateAccounts } from "@/lib/projection";
 import {
@@ -148,6 +149,7 @@ function MonteCarloTooltip({ active, payload, label }: any) {
 
 export default function Overview() {
   const { projection, inputs, updateInput } = usePlanner();
+  const { pendingCloudPlan, doLoad, dismissPendingPlan } = useCloudSyncContext();
   const [showMonteCarlo, setShowMonteCarlo] = useState(false);
   const [mcRunning, setMcRunning] = useState(false);
   const [mcData, setMcData] = useState<MonteCarloResult[] | null>(null);
@@ -298,6 +300,38 @@ export default function Overview() {
 
   return (
     <div className="space-y-6">
+      {/* ── On-login cloud plan banner ─────────────────────────────────────── */}
+      {pendingCloudPlan && (
+        <div className="flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3.5">
+          <CloudDownload className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-emerald-800">Cloud save found</p>
+            <p className="text-xs text-emerald-700 mt-0.5">
+              You have a saved plan
+              {pendingCloudPlan.updatedAt
+                ? ` last saved ${new Date(pendingCloudPlan.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`
+                : ""}
+              . Load it now or keep your current local inputs.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={doLoad}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              Load plan
+            </button>
+            <button
+              onClick={dismissPendingPlan}
+              className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-100 transition-colors"
+              title="Keep local inputs"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
