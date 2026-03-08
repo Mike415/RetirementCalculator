@@ -177,7 +177,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
           <img
             src="https://d2xsxph8kpxj0f.cloudfront.net/310519663317271153/GenHb4QZTAGMkdmFbXCBeo/pr-logo-orange-2k7HDSrZFY7bSQGeDyDy2Z.webp"
             alt="Project Retire logo"
-            className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
+            className="w-12 h-12 rounded-xl flex-shrink-0 object-cover"
           />
           <h1 className="font-bold text-sm leading-tight tracking-wide text-white">
             Project Retire

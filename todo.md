@@ -84,3 +84,4 @@
 - [x] SEO: add meta description, Open Graph tags, Twitter card, canonical URL
 - [x] SEO: add structured data (JSON-LD) for the app
 - [x] SEO: add robots.txt and sitemap.xml
+- [x] Make sidebar logo image larger
