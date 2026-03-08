@@ -32,7 +32,9 @@ const queryClient = new QueryClient({
 function TrpcProvider({ children }: { children: React.ReactNode }) {
   const { getToken, isSignedIn, isLoaded } = useAuth();
 
-  // Stable tRPC client — reads token lazily so it always has the latest JWT
+  // Recreate the tRPC client whenever getToken changes (i.e. when the Clerk
+  // session changes after a modal sign-in). This ensures the new session token
+  // is picked up immediately without needing a full page reload.
   const trpcClient = useMemo(
     () =>
       trpc.createClient({
@@ -47,7 +49,7 @@ function TrpcProvider({ children }: { children: React.ReactNode }) {
           }),
         ],
       }),
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    [getToken] // Recreate when Clerk session changes so new token is used
   );
 
   // Track previous auth state so we only invalidate on actual changes
@@ -58,15 +60,10 @@ function TrpcProvider({ children }: { children: React.ReactNode }) {
     if (prevIsSignedIn.current === isSignedIn) return; // No change
 
     if (prevIsSignedIn.current !== undefined) {
-      if (isSignedIn) {
-        // User just signed in via Clerk modal — do a full page reload so the
-        // session cookie is picked up cleanly and all queries re-fetch with
-        // the new auth context. This is the most reliable fix for the
-        // "must refresh after sign-in" bug with Clerk v6 modal mode.
-        window.location.reload();
-        return;
-      }
-      // User signed out — invalidate queries (no reload needed)
+      // Auth state changed (sign-in or sign-out).
+      // Invalidate all queries so they re-fetch with the new auth context.
+      // The tRPC client (recreated above via getToken dep) will send the
+      // correct token on the next request — no page reload needed.
       queryClient.invalidateQueries();
     }
     prevIsSignedIn.current = isSignedIn;

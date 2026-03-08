@@ -64,13 +64,6 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "Account",
-    items: [
-      { path: "/plans", label: "My Plans", icon: FolderOpen },
-      { path: "/faq",   label: "FAQ",      icon: HelpCircle },
-    ],
-  },
-  {
     title: "Inputs",
     items: [
       { path: "/accounts",        label: "Accounts & Timeline", icon: PiggyBank   },
@@ -81,6 +74,13 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/budget",          label: "Budget Periods",      icon: BookOpen    },
       { path: "/social-security", label: "Social Security",     icon: ShieldCheck },
       { path: "/events",          label: "One-Time Events",     icon: CalendarClock },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { path: "/plans", label: "My Plans",       icon: FolderOpen },
+      { path: "/faq",   label: "FAQ",            icon: HelpCircle },
     ],
   },
 ];
@@ -263,41 +263,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   Manage Plans
                 </Link>
 
-                {/* Import / Export */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={exportPlan}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-                    title="Export plan (.json)"
-                  >
-                    <Download className="w-3 h-3 flex-shrink-0" />
-                    Export
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-                    title="Import plan (.json)"
-                  >
-                    <Upload className="w-3 h-3 flex-shrink-0" />
-                    Import
-                  </button>
-                </div>
-
-                {/* Reset to defaults */}
-                <button
-                  onClick={handleReset}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border",
-                    confirming
-                      ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
-                      : "text-white/40 border-white/10 hover:bg-white/8 hover:text-white/70"
-                  )}
-                >
-                  <RotateCcw className="w-3 h-3 flex-shrink-0" />
-                  {confirming ? "Click again to confirm" : "Reset to defaults"}
-                </button>
-
-                {/* Sign out */}
+                {/* Sign out — moved here from bottom */}
                 <button
                   onClick={() => signOut()}
                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/40 border border-white/10 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all duration-150"
@@ -305,6 +271,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   <LogOut className="w-3 h-3 flex-shrink-0" />
                   Sign out
                 </button>
+
               </div>
             </div>
           </>
@@ -344,37 +311,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   </button>
                 </SignInButton>
 
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={exportPlan}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-                    title="Export plan (.json)"
-                  >
-                    <Download className="w-3 h-3 flex-shrink-0" />
-                    Export
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-                    title="Import plan (.json)"
-                  >
-                    <Upload className="w-3 h-3 flex-shrink-0" />
-                    Import
-                  </button>
-                </div>
-
-                <button
-                  onClick={handleReset}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border",
-                    confirming
-                      ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
-                      : "text-white/40 border-white/10 hover:bg-white/8 hover:text-white/70"
-                  )}
-                >
-                  <RotateCcw className="w-3 h-3 flex-shrink-0" />
-                  {confirming ? "Click again to confirm" : "Reset to defaults"}
-                </button>
+                {/* Import/Export and Reset moved to Account section in nav */}
               </div>
             </div>
           </>
@@ -428,6 +365,58 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   </Link>
                 );
               })}
+
+              {/* Account section: Import / Export / Reset / Sign Out action buttons */}
+              {section.title === "Account" && (
+                <div className="mt-1 space-y-0.5">
+                  {/* Import / Export row */}
+                  <div className="grid grid-cols-2 gap-1 px-1">
+                    <button
+                      onClick={exportPlan}
+                      className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
+                      title="Export plan (.json)"
+                    >
+                      <Download className="w-3.5 h-3.5 flex-shrink-0" />
+                      Export
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150"
+                      title="Import plan (.json)"
+                    >
+                      <Upload className="w-3.5 h-3.5 flex-shrink-0" />
+                      Import
+                    </button>
+                  </div>
+
+                  {/* Reset to defaults */}
+                  <button
+                    onClick={handleReset}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                      confirming
+                        ? "bg-red-500/15 text-red-300"
+                        : "text-white/50 hover:bg-white/8 hover:text-white/80"
+                    )}
+                  >
+                    <RotateCcw className={cn("w-4 h-4 flex-shrink-0", confirming ? "text-red-400" : "text-white/40")} />
+                    <span className="flex-1 truncate">
+                      {confirming ? "Click again to confirm" : "Reset to defaults"}
+                    </span>
+                  </button>
+
+                  {/* Sign out (only when signed in) */}
+                  {isSignedIn && (
+                    <button
+                      onClick={() => signOut()}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white/50 hover:bg-red-500/10 hover:text-red-300 transition-all duration-150"
+                    >
+                      <LogOut className="w-4 h-4 flex-shrink-0 text-white/40" />
+                      <span className="flex-1 truncate">Sign out</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}

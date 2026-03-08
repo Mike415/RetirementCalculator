@@ -97,3 +97,9 @@
 - [x] Add on-login cloud plan banner to Overview page
 - [x] Rebuild Manage Plans page with plan cards, fork/create, active plan indicator, plan limit
 - [x] Track active plan name in useCloudSync and show it in sidebar user strip
+
+## Auth & Sidebar Fixes
+- [x] Fix sign-in refresh bug (app should react immediately after Clerk modal sign-in)
+- [x] Move Account section to the bottom of the sidebar nav
+- [x] Move Import/Export and Sign Out into the Account section of the sidebar
+- [x] Move Account section to the bottom of the sidebar nav
