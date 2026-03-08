@@ -272,11 +272,13 @@ const FAQ_SECTIONS: FAQSection[] = [
         question: "Is my financial data secure?",
         answer: (
           <p>
-            Yes. Your plan data is stored encrypted in our database (TiDB Cloud, hosted on AWS
-            US-West). We use Clerk for authentication, which means we never store your password —
-            authentication is handled by industry-standard OAuth and JWT tokens. Your financial data
-            is associated with your account and is never shared with third parties or used for
-            advertising.
+            Your plan data is stored in our database (TiDB Cloud, hosted on AWS US-West), which
+            provides encryption at rest and in transit. We use Clerk for authentication, which means
+            we never store your password — authentication is handled by industry-standard OAuth and
+            JWT tokens. Your financial data is associated with your account and is never shared with
+            third parties or used for advertising. As with any cloud service, the Project Retire team
+            has administrative database access for support and operational purposes — your data is
+            not end-to-end encrypted.
           </p>
         ),
       },

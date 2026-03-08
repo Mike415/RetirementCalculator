@@ -138,8 +138,9 @@ export default function Budget() {
   const { budgetPeriods } = inputs;
   const [activePeriodIdx, setActivePeriodIdx] = useState(0);
   const [, navigate] = useHashLocation();
-  const { limits, tier, cta } = useTierLimits();
+  const { limits, tier, storedTier, betaActive, cta } = useTierLimits();
   const canAddPeriod = limits.budgetPeriods === Infinity || budgetPeriods.length < limits.budgetPeriods;
+  const atBudgetLimit = !canAddPeriod;
   const periodLimitCta = cta("more budget periods");
 
   const activePeriod = budgetPeriods[activePeriodIdx];
@@ -279,17 +280,42 @@ export default function Budget() {
             </button>
           );
         })}
+        {canAddPeriod && (
+          <button
+            onClick={() => duplicatePeriod(activePeriodIdx)}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-[#1B4332] text-white rounded-xl hover:bg-[#2D6A4F] transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Add Period
+          </button>
+        )}
         {!canAddPeriod && (
           <button
             onClick={() => navigate("/billing")}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#1B4332] bg-[#1B4332]/10 border border-[#1B4332]/20 rounded-xl hover:bg-[#1B4332]/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors"
           >
             <Lock className="w-3 h-3" />
-            {limits.budgetPeriods === Infinity ? "" : `${budgetPeriods.length}/${limits.budgetPeriods} periods`} Upgrade for more
+            {limits.budgetPeriods !== Infinity ? `${budgetPeriods.length}/${limits.budgetPeriods} periods — ` : ""}Upgrade for more
           </button>
         )}
       </div>
-
+      {/* Limit reached amber banner */}
+      {atBudgetLimit && !betaActive && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl">
+          <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+          <p className="text-xs text-amber-800">
+            {storedTier === "free"
+              ? `Free accounts are limited to ${limits.budgetPeriods} budget periods.`
+              : `Basic accounts are limited to ${limits.budgetPeriods} budget periods.`}{" "}
+            <a
+              href="#/billing"
+              className="font-semibold underline underline-offset-2 hover:text-amber-900"
+            >
+              Upgrade to add more.
+            </a>
+          </p>
+        </div>
+      )}
       {/* Active period editor */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
 

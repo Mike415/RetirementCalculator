@@ -38,8 +38,9 @@ export default function IncomePhases() {
   const phases = inputs.incomePhases ?? [];
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, navigate] = useHashLocation();
-  const { limits, cta } = useTierLimits();
+  const { limits, storedTier, betaActive, cta } = useTierLimits();
   const canAddAltIncome = limits.altIncome === Infinity || phases.length < limits.altIncome;
+  const atAltIncomeLimit = !canAddAltIncome;
   const altIncomeCta = cta("more income streams");
 
   function addPhase(preset?: Omit<IncomePhase, "id" | "startAge">) {
@@ -141,9 +142,28 @@ export default function IncomePhases() {
         description={
           phases.length === 0
             ? "No income phases defined. Add one above or click the button below."
-            : `${phases.length} phase${phases.length !== 1 ? "s" : ""} defined.`
+            : limits.altIncome !== Infinity
+              ? `${phases.length}/${limits.altIncome} income streams used`
+              : `${phases.length} phase${phases.length !== 1 ? "s" : ""} defined.`
         }
       >
+        {/* Limit reached banner */}
+        {atAltIncomeLimit && !betaActive && (
+          <div className="px-4 py-3 mb-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-2">
+            <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <p className="text-xs text-amber-800">
+              {storedTier === "free"
+                ? `Free accounts are limited to ${limits.altIncome} income stream${limits.altIncome === 1 ? "" : "s"}.`
+                : `Basic accounts are limited to ${limits.altIncome} income stream${limits.altIncome === 1 ? "" : "s"}.`}{" "}
+              <a
+                href="#/billing"
+                className="font-semibold underline underline-offset-2 hover:text-amber-900"
+              >
+                Upgrade to add more.
+              </a>
+            </p>
+          </div>
+        )}
         <div className="space-y-3">
           {sortedPhases.length === 0 && (
             <div className="text-center py-8 text-slate-400">

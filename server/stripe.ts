@@ -240,33 +240,63 @@ export async function createCheckoutSession(params: {
  * Verify a user's current Stripe subscription state by looking up their customer ID.
  * Returns the active tier, customerId, subscriptionId, and end date — or null if no active sub.
  * Used as a client-side fallback when the webhook hasn't fired yet.
+ *
+ * When stripeCustomerId is null (first-time buyer, webhook not yet fired), falls back to
+ * searching Stripe customers by email to find the newly-created customer.
  */
 export async function verifyCheckoutSession(
   userId: number,
-  stripeCustomerId: string | undefined
+  stripeCustomerId: string | undefined,
+  userEmail?: string | null
 ): Promise<{
   tier: "basic" | "pro";
   customerId: string;
   subscriptionId: string;
   subscriptionEndsAt: Date | undefined;
 } | null> {
-  if (!stripeCustomerId) {
-    console.log(`[verifyCheckout] No stripeCustomerId for user ${userId}`);
+  const stripe = getStripe();
+
+  let resolvedCustomerId = stripeCustomerId;
+
+  // First-time buyer: stripeCustomerId not yet in DB (webhook hasn't fired).
+  // Search Stripe customers by email to find the newly-created customer.
+  if (!resolvedCustomerId && userEmail) {
+    console.log(`[verifyCheckout] No stripeCustomerId for user ${userId}, searching by email ${userEmail}`);
+    try {
+      const customers = await stripe.customers.list({ email: userEmail, limit: 5 });
+      // Find the most recently created customer with an active subscription
+      for (const customer of customers.data) {
+        const activeSubs = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: "active",
+          limit: 1,
+        });
+        if (activeSubs.data.length > 0) {
+          resolvedCustomerId = customer.id;
+          console.log(`[verifyCheckout] Found customer ${customer.id} via email lookup for user ${userId}`);
+          break;
+        }
+      }
+    } catch (err) {
+      console.warn(`[verifyCheckout] Email-based customer lookup failed:`, err);
+    }
+  }
+
+  if (!resolvedCustomerId) {
+    console.log(`[verifyCheckout] Could not resolve Stripe customer for user ${userId}`);
     return null;
   }
 
-  const stripe = getStripe();
-
   // List active subscriptions for this customer
   const subs = await stripe.subscriptions.list({
-    customer: stripeCustomerId,
+    customer: resolvedCustomerId,
     status: "active",
     limit: 5,
     expand: ["data.items.data.price.product"],
   });
 
   if (subs.data.length === 0) {
-    console.log(`[verifyCheckout] No active subscriptions for customer ${stripeCustomerId}`);
+    console.log(`[verifyCheckout] No active subscriptions for customer ${resolvedCustomerId}`);
     return null;
   }
 
@@ -289,7 +319,7 @@ export async function verifyCheckoutSession(
 
   return {
     tier,
-    customerId: stripeCustomerId,
+    customerId: resolvedCustomerId,
     subscriptionId: sub.id,
     subscriptionEndsAt: sub.cancel_at ? new Date(sub.cancel_at * 1000) : undefined,
   };

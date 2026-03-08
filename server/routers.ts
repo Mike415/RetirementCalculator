@@ -190,8 +190,14 @@ export const appRouter = router({
     verifyCheckout: protectedProcedure
       .input(z.object({ sessionId: z.string().optional() }))
       .mutation(async ({ ctx }) => {
-        // Re-fetch the user's latest subscription state from Stripe
-        const result = await verifyCheckoutSession(ctx.user.id, ctx.user.stripeCustomerId ?? undefined);
+        // Re-fetch the user's latest subscription state from Stripe.
+        // Pass email as fallback for first-time buyers where stripeCustomerId is not yet in DB
+        // (webhook hasn't fired yet when the client calls this immediately after checkout).
+        const result = await verifyCheckoutSession(
+          ctx.user.id,
+          ctx.user.stripeCustomerId ?? undefined,
+          ctx.user.email
+        );
         if (result) {
           await db.updateUserTier(
             ctx.user.id,

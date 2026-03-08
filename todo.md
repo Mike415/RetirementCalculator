@@ -243,3 +243,7 @@
 - [x] Client: Users list page with search, tier badge, beta toggle
 - [x] Client: User detail drawer/modal with payment history and feature usage
 - [x] Client: Add /admin link to sidebar (admin-only, visible only to admin role)
+
+## Bug Fixes — Stripe Checkout (First-Time Buyer)
+- [x] Fix: verifyCheckout fails for first-time buyers because stripeCustomerId is null in DB when webhook hasn't fired yet — added email-based Stripe customer lookup fallback in verifyCheckoutSession
+- [x] Fix: verifyCheckout called immediately on return from Stripe before subscription is finalized — added 1.5s initial delay + 3 retries with 2s spacing

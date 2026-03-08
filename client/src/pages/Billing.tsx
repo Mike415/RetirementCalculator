@@ -191,10 +191,13 @@ export default function Billing() {
   // immediately verify the subscription with Stripe to update the DB tier.
   useEffect(() => {
     const intent = sessionStorage.getItem("checkoutIntent");
-    if (intent) {
-      sessionStorage.removeItem("checkoutIntent");
-      // Stripe redirects back here on both success and cancel.
-      // We call verifyCheckout to determine if a subscription was created.
+    if (!intent) return;
+    sessionStorage.removeItem("checkoutIntent");
+
+    // Stripe redirects back here on both success and cancel.
+    // We call verifyCheckout to determine if a subscription was created.
+    // A short delay gives Stripe time to finalize the subscription before we query it.
+    const attemptVerify = (attemptsLeft: number) => {
       verifyCheckout.mutate(
         { sessionId: undefined },
         {
@@ -203,19 +206,29 @@ export default function Billing() {
               console.log(`[Billing] Tier verified and updated to ${result.tier}`);
               setCheckoutStatus("success");
               utils.user.profile.invalidate();
+            } else if (attemptsLeft > 0) {
+              // Subscription not yet visible — retry after a short delay
+              console.log(`[Billing] Subscription not yet active, retrying in 2s (${attemptsLeft} attempts left)`);
+              setTimeout(() => attemptVerify(attemptsLeft - 1), 2000);
             } else {
-              // No active subscription found — user canceled
+              // No active subscription found after retries — user likely canceled
               setCheckoutStatus("canceled");
             }
           },
           onError: (err) => {
             console.warn("[Billing] verifyCheckout failed:", err.message);
-            // Assume canceled if we can't verify
-            setCheckoutStatus("canceled");
+            if (attemptsLeft > 0) {
+              setTimeout(() => attemptVerify(attemptsLeft - 1), 2000);
+            } else {
+              setCheckoutStatus("canceled");
+            }
           },
         }
       );
-    }
+    };
+
+    // Wait 1.5s before first attempt to give Stripe time to finalize the subscription
+    setTimeout(() => attemptVerify(3), 1500);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
