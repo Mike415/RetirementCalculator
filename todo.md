@@ -105,3 +105,4 @@
 - [x] Move Account section to the bottom of the sidebar nav
 - [x] Make Export and Import their own full-width rows in the Account section
 - [x] Hide Reset to Defaults for signed-in users (keep for signed-out)
+- [x] Definitively fix sign-in refresh bug (app must update immediately after Clerk modal sign-in)

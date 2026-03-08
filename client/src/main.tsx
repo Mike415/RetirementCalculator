@@ -1,7 +1,7 @@
-import { ClerkProvider, useAuth } from "@clerk/react";
+import { ClerkProvider, useAuth, useSession } from "@clerk/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -14,74 +14,100 @@ if (!CLERK_PUBLISHABLE_KEY) {
   console.error("Missing VITE_CLERK_PUBLISHABLE_KEY environment variable");
 }
 
-// Create stable instances outside the component so they don't re-create on every render.
-// The tRPC client reads the token lazily via the headers() callback, so it always
-// uses the latest Clerk token without needing to be recreated.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, refetchOnWindowFocus: false },
   },
 });
 
+// Module-level token getter — updated by TrpcTokenBridge on every render.
+// The tRPC client is created once and calls this lazily on each request,
+// so it always uses the latest Clerk session token without needing to
+// recreate the client.
+let _getToken: (() => Promise<string | null>) | null = null;
+
+const trpcClient = trpc.createClient({
+  links: [
+    httpBatchLink({
+      url: "/api/trpc",
+      transformer: superjson,
+      async headers() {
+        if (_getToken) {
+          try {
+            const token = await _getToken();
+            if (token) return { Authorization: `Bearer ${token}` };
+          } catch {}
+        }
+        return {};
+      },
+    }),
+  ],
+});
+
 /**
- * Inner component that has access to Clerk's useAuth hook so we can:
- * 1. Attach the Clerk session token to every tRPC request.
- * 2. Invalidate all tRPC queries when auth state changes (sign-in/sign-out),
- *    so the UI refreshes automatically without a manual page reload.
+ * Bridges Clerk's useAuth getToken into the module-level _getToken ref
+ * so the stable tRPC client always has access to the latest session token.
  */
-function TrpcProvider({ children }: { children: React.ReactNode }) {
-  const { getToken, isSignedIn, isLoaded } = useAuth();
+function TrpcTokenBridge() {
+  const { getToken } = useAuth();
+  // Update on every render — Clerk may return a new function reference
+  // after a session change, and we want the tRPC client to pick it up.
+  _getToken = () => getToken() as Promise<string | null>;
+  return null;
+}
 
-  // Recreate the tRPC client whenever getToken changes (i.e. when the Clerk
-  // session changes after a modal sign-in). This ensures the new session token
-  // is picked up immediately without needing a full page reload.
-  const trpcClient = useMemo(
-    () =>
-      trpc.createClient({
-        links: [
-          httpBatchLink({
-            url: "/api/trpc",
-            transformer: superjson,
-            async headers() {
-              const token = await getToken();
-              return token ? { Authorization: `Bearer ${token}` } : {};
-            },
-          }),
-        ],
-      }),
-    [getToken] // Recreate when Clerk session changes so new token is used
-  );
-
-  // Track previous auth state so we only invalidate on actual changes
-  const prevIsSignedIn = useRef<boolean | undefined>(undefined);
+/**
+ * SessionWatcher — detects when a Clerk session is newly established
+ * (e.g. after modal sign-in) and performs a hard reload.
+ *
+ * Why a hard reload?
+ * Clerk v6 modal sign-in updates the internal session store, but React's
+ * reconciler doesn't always flush the change synchronously across all
+ * provider boundaries (PlannerContext, CloudSyncContext, etc.). A hard
+ * reload is the only guaranteed way to ensure every part of the app
+ * starts fresh with the correct auth context.
+ *
+ * The 400ms delay gives Clerk time to finish writing the session cookie
+ * before the page reloads, preventing a race where the reload fires
+ * before the cookie is available.
+ */
+function SessionWatcher() {
+  const { session, isLoaded } = useSession();
+  const prevSessionId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!isLoaded) return; // Wait until Clerk has resolved
-    if (prevIsSignedIn.current === isSignedIn) return; // No change
+    if (!isLoaded) return;
 
-    if (prevIsSignedIn.current !== undefined) {
-      // Auth state changed (sign-in or sign-out).
-      // Invalidate all queries so they re-fetch with the new auth context.
-      // The tRPC client (recreated above via getToken dep) will send the
-      // correct token on the next request — no page reload needed.
-      queryClient.invalidateQueries();
+    const currentId = session?.id ?? null;
+
+    // First render: record the initial state without reloading.
+    if (prevSessionId.current === undefined) {
+      prevSessionId.current = currentId;
+      return;
     }
-    prevIsSignedIn.current = isSignedIn;
-  }, [isSignedIn, isLoaded]);
 
-  return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    </trpc.Provider>
-  );
+    // Session went from absent → present: user just signed in via modal.
+    if (!prevSessionId.current && currentId) {
+      setTimeout(() => {
+        window.location.reload();
+      }, 400);
+      return;
+    }
+
+    prevSessionId.current = currentId;
+  }, [session?.id, isLoaded]);
+
+  return null;
 }
 
 createRoot(document.getElementById("root")!).render(
   <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/">
-    <TrpcProvider>
-      <App />
-    </TrpcProvider>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <TrpcTokenBridge />
+        <SessionWatcher />
+        <App />
+      </QueryClientProvider>
+    </trpc.Provider>
   </ClerkProvider>
 );
