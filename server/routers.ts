@@ -31,13 +31,18 @@ export const appRouter = router({
     /** Return the current user from the DB (null if not authenticated). */
     me: publicProcedure.query((opts) => opts.ctx.user),
     /** Debug: return raw auth context info (clerkUserId + user presence). Remove after debugging. */
-    debug: publicProcedure.query((opts) => ({
-      clerkUserId: opts.ctx.clerkUserId,
-      userId: opts.ctx.user?.id ?? null,
-      email: opts.ctx.user?.email ?? null,
-      role: opts.ctx.user?.role ?? null,
-      hasAuthHeader: !!opts.ctx.req.headers.authorization,
-    })),
+    debug: publicProcedure.query(async (opts) => {
+      const dbInstance = await getDb();
+      return {
+        clerkUserId: opts.ctx.clerkUserId,
+        userId: opts.ctx.user?.id ?? null,
+        email: opts.ctx.user?.email ?? null,
+        role: opts.ctx.user?.role ?? null,
+        hasAuthHeader: !!opts.ctx.req.headers.authorization,
+        dbAvailable: !!dbInstance,
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+      };
+    }),
   }),
 
   // ─── Plans ─────────────────────────────────────────────────────────────────

@@ -721,9 +721,11 @@ export default function Admin() {
             <div className="font-semibold mb-1 text-muted-foreground">Auth Debug Info</div>
             <div>hasAuthHeader: {String(debugInfo.hasAuthHeader)}</div>
             <div>clerkUserId: {debugInfo.clerkUserId ?? "null"}</div>
-            <div>userId: {debugInfo.userId ?? "null"}</div>
+            <div>userId: {String(debugInfo.userId)}</div>
             <div>email: {debugInfo.email ?? "null"}</div>
             <div>role: {debugInfo.role ?? "null"}</div>
+            <div>dbAvailable: {String((debugInfo as any).dbAvailable)}</div>
+            <div>hasDatabaseUrl: {String((debugInfo as any).hasDatabaseUrl)}</div>
           </div>
         )}
       </div>
