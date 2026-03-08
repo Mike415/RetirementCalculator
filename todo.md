@@ -108,8 +108,9 @@
 - [x] Definitively fix sign-in refresh bug (app must update immediately after Clerk modal sign-in)
 
 ## Bug Fixes (Plans & Sidebar)
-- [ ] Fix Plans page: renamed plan name reverts after creating a new plan
-- [ ] Fix Plans page: active plan indicator (Loaded badge) disappears after switching plans
-- [ ] Fix sidebar Account section: align Export, Import, Sign Out left like other nav items
-- [ ] Fix GitHub Actions deploy failures
-- [ ] Sign-in still requires manual refresh — SessionWatcher not firing reliably
+- [x] Fix Plans page: renamed plan name reverts after creating a new plan
+- [x] Fix Plans page: active plan indicator (Loaded badge) disappears after switching plans
+- [x] Fix sidebar Account section: align Export, Import, Sign Out left like other nav items
+- [x] Remove GitHub Pages deploy workflow (Railway is the live host)
+- [x] Sign-in refresh: rewrote SessionWatcher using useClerk().addListener() for reliable session change detection
+- [x] Fix Plans page: active plan indicator not working (Load button should become Active badge after loading)

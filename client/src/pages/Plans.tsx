@@ -33,6 +33,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const SCENARIOS_KEY = "retirement-planner-scenarios-v1";
+const ACTIVE_PLAN_KEY = "rp_active_plan_id";
 
 // Tier limits (mirrors server/routers.ts MAX_PLANS)
 const MAX_PLANS: Record<string, number> = { free: 0, basic: 1, pro: 10 };
@@ -338,7 +339,21 @@ export default function Plans() {
   // Track which plan was most recently loaded by the user on this page.
   // Falls back to cloudPlanId (the auto-save plan) when nothing has been
   // explicitly loaded yet.
-  const [activePlanId, setActivePlanId] = useState<number | null>(null);
+  // Persist activePlanId in localStorage so it survives navigation
+  const [activePlanId, setActivePlanId] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem(ACTIVE_PLAN_KEY);
+      return stored ? parseInt(stored, 10) : null;
+    } catch { return null; }
+  });
+
+  const setActivePlan = (id: number | null) => {
+    setActivePlanId(id);
+    try {
+      if (id !== null) localStorage.setItem(ACTIVE_PLAN_KEY, String(id));
+      else localStorage.removeItem(ACTIVE_PLAN_KEY);
+    } catch { /* ignore */ }
+  };
 
   const utils = trpc.useUtils();
   const plansQuery = trpc.plans.list.useQuery(undefined, {
@@ -388,7 +403,7 @@ export default function Plans() {
         } catch { /* ignore */ }
       }
       // Mark this plan as the currently active one in the UI
-      setActivePlanId(plan.id);
+      setActivePlan(plan.id);
       toast.success(`"${plan.name}" loaded!`);
     } catch {
       toast.error("Failed to load plan.");
@@ -458,6 +473,14 @@ export default function Plans() {
       toast.error(err instanceof Error ? err.message : "Failed to fork plan.");
     }
   };
+
+  // When cloudPlanId is first available and no explicit activePlanId is set, use it as default
+  useEffect(() => {
+    if (cloudPlanId && activePlanId === null) {
+      setActivePlan(cloudPlanId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudPlanId]);
 
   // ── Not loaded ─────────────────────────────────────────────────────────────
   if (!isLoaded) {
@@ -571,7 +594,7 @@ export default function Plans() {
             <PlanCard
               key={plan.id}
               plan={plan}
-              isActive={plan.id === (activePlanId ?? cloudPlanId)}
+              isActive={plan.id === (activePlanId ?? cloudPlanId ?? -1)}
               onLoad={() => handleLoad(plan)}
               onRename={(name) => handleRename(plan.id, name)}
               onDelete={() => handleDelete(plan.id)}
