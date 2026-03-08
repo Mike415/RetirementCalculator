@@ -693,6 +693,7 @@ function UsersTab() {
 
 export default function Admin() {
   const { data: me, isLoading: loading } = trpc.auth.me.useQuery();
+  const { data: debugInfo } = trpc.auth.debug.useQuery();
   const [, navigate] = useLocation();
   const [tab, setTab] = useState<"analytics" | "users">("analytics");
 
@@ -703,8 +704,6 @@ export default function Admin() {
       </div>
     );
   }
-
-  const { data: debugInfo } = trpc.auth.debug.useQuery();
 
   if (!me || me.role !== "admin") {
     return (
