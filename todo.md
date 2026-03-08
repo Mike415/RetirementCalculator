@@ -117,3 +117,44 @@
 - [x] Remove Manage Plans from the username dropdown (it lives in Account section nav)
 - [x] Fix Account section: Export, Import, Sign Out alignment to match nav item style
 - [x] Replace custom user strip dropdown with Clerk UserButton (Option B)
+
+## Tier & Feature Enforcement (see TIER_SPEC.md)
+
+### Stripe / Billing Updates
+- [ ] Update server/products.ts: Basic $2.99/mo, Pro $4.99/mo
+- [ ] Create real Stripe products (Basic $2.99, Pro $4.99) and set STRIPE_PRICE_BASIC, STRIPE_PRICE_PRO
+- [ ] Update Billing page: show $2.99 Basic / $4.99 Pro pricing
+- [ ] Update Billing page: show full feature comparison table from TIER_SPEC.md
+
+### Tier Limits Infrastructure
+- [ ] Create shared/tierLimits.ts with TIER_LIMITS and TIER_FEATURES constants
+- [ ] Create client/src/hooks/useTierLimits.ts hook (reads planTier, returns limits + feature flags)
+- [ ] Create client/src/components/TierGate.tsx reusable gate component (lock badge + upgrade CTA)
+- [ ] TierGate: signed-out users → opens Clerk sign-in modal on click
+- [ ] TierGate: free/basic users → links to #/billing on click
+
+### Feature Gating — Numeric Limits
+- [ ] Budget.tsx: gate "Add Period" at tier limit (2/4/10); show TierGate with upgrade prompt
+- [ ] HomeMortgage.tsx: gate "Add Home" at limit (1/1/1/unlimited); show TierGate
+- [ ] AlternativeIncome.tsx: gate "Add Income" at limit (1/1/1/unlimited); show TierGate
+- [ ] Plans.tsx: gate "Save New Plan" at plan count limit (0/1/3/10); show TierGate
+
+### Feature Gating — Boolean Features
+- [ ] Partner/spouse toggle: gate for signed-out + free users; show TierGate (Basic+)
+- [ ] PDF Export: gate for signed-out + free users; show TierGate (Basic+)
+- [ ] Roth Conversion tab/page: gate for signed-out + free + basic users; show TierGate (Pro only)
+- [ ] Monte Carlo tab/page: gate for signed-out + free + basic users; show TierGate (Pro only)
+- [ ] Version history UI: gate for signed-out + free users; show TierGate (Basic+)
+
+### Server-side Enforcement
+- [ ] Update plans.create to use TIER_LIMITS constants (not hardcoded values)
+- [ ] Add server-side check for PDF export tier (Basic+)
+
+### Version History UI
+- [ ] Build version history panel on Plans page (list snapshots, restore button)
+- [ ] Gate version history panel behind Basic+ TierGate
+
+### Clarifications Needed Before Building
+- [ ] Confirm: PDF export — single-page summary or multi-page full report?
+- [ ] Confirm: Partner/spouse — is partnerEnabled UI already built or needs work?
+- [ ] Confirm: Roth optimizer + Monte Carlo — already implemented (just needs ungating) or needs to be built?
