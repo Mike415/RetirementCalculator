@@ -3,6 +3,9 @@
  *
  * When the user is signed in:
  *   - On first load, checks if a cloud plan exists and offers to load it.
+ *   - Auto-save is BLOCKED until the load-on-login decision is settled
+ *     (user loads, dismisses, or no cloud plan exists). This prevents
+ *     overwriting cloud data with local placeholder values on first sign-in.
  *   - "Save to Cloud" saves the current plan to the database.
  *   - "Load from Cloud" loads the most recent saved plan.
  *   - Auto-save triggers 3 seconds after the last change (debounced).
@@ -37,9 +40,17 @@ export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
   useEffect(() => {
     onStatusChange?.(status, lastSaved);
   }, [status, lastSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [cloudPlanId, setCloudPlanId] = useState<number | null>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // isFirstLoad: true until we've checked for a cloud plan on this session
   const isFirstLoad = useRef(true);
+  // cloudLoadSettled: auto-save is blocked until this is true.
+  // It becomes true when:
+  //   (a) no cloud plan exists for this user, OR
+  //   (b) the load-on-login toast has been shown (user can load or dismiss)
+  const cloudLoadSettled = useRef(false);
 
   // ── tRPC hooks ──────────────────────────────────────────────────────────────
   const plansQuery = trpc.plans.list.useQuery(undefined, {
@@ -62,6 +73,9 @@ export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
     const existing = plansQuery.data.find((p) => p.name === CLOUD_PLAN_NAME);
     if (existing) {
       setCloudPlanId(existing.id);
+    } else {
+      // No cloud plan exists — safe to start auto-saving immediately
+      cloudLoadSettled.current = true;
     }
   }, [plansQuery.data]);
 
@@ -71,19 +85,35 @@ export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
     if (!isSignedIn || !getPlan.data) return;
     isFirstLoad.current = false;
 
-    // Offer to load cloud plan
     const planData = getPlan.data.data as Record<string, unknown> | null;
     if (planData) {
+      // Show the load prompt. Auto-save is still blocked at this point.
+      // It will be unblocked after the toast action fires or the toast dismisses.
       toast("Cloud plan found", {
         description: "Load your saved plan from the cloud?",
         action: {
           label: "Load",
-          onClick: () => doLoad(planData),
+          onClick: () => {
+            doLoad(planData);
+            // After loading, allow auto-save (will reflect the loaded data)
+            cloudLoadSettled.current = true;
+          },
         },
-        duration: 8000,
+        onDismiss: () => {
+          // User dismissed — keep local data, allow auto-save going forward
+          cloudLoadSettled.current = true;
+        },
+        onAutoClose: () => {
+          // Toast timed out — keep local data, allow auto-save going forward
+          cloudLoadSettled.current = true;
+        },
+        duration: 10000,
       });
+    } else {
+      // Cloud plan exists but has no data — settle immediately
+      cloudLoadSettled.current = true;
     }
-  }, [isSignedIn, getPlan.data]);
+  }, [isSignedIn, getPlan.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Save implementation ─────────────────────────────────────────────────────
   const doSave = useCallback(async (silent = false) => {
@@ -173,8 +203,12 @@ export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
   }, [cloudPlanId, utils, doLoad]);
 
   // ── Auto-save (debounced, 3s after last change) ─────────────────────────────
+  // IMPORTANT: auto-save is blocked until cloudLoadSettled is true, preventing
+  // the local placeholder data from overwriting the user's cloud plan on first login.
   useEffect(() => {
     if (!isSignedIn) return;
+    if (!cloudLoadSettled.current) return; // Block until load decision is made
+
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       doSave(true);

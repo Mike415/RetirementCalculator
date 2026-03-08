@@ -1,6 +1,7 @@
 import { ClerkProvider, useAuth } from "@clerk/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
+import { useEffect, useMemo, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -13,32 +14,56 @@ if (!CLERK_PUBLISHABLE_KEY) {
   console.error("Missing VITE_CLERK_PUBLISHABLE_KEY environment variable");
 }
 
+// Create stable instances outside the component so they don't re-create on every render.
+// The tRPC client reads the token lazily via the headers() callback, so it always
+// uses the latest Clerk token without needing to be recreated.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, refetchOnWindowFocus: false },
+  },
+});
+
 /**
- * Inner component that has access to Clerk's useAuth hook so we can
- * attach the Clerk session token to every tRPC request.
+ * Inner component that has access to Clerk's useAuth hook so we can:
+ * 1. Attach the Clerk session token to every tRPC request.
+ * 2. Invalidate all tRPC queries when auth state changes (sign-in/sign-out),
+ *    so the UI refreshes automatically without a manual page reload.
  */
 function TrpcProvider({ children }: { children: React.ReactNode }) {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useAuth();
 
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: 1, refetchOnWindowFocus: false },
-    },
-  });
-
-  const trpcClient = trpc.createClient({
-    links: [
-      httpBatchLink({
-        url: "/api/trpc",
-        transformer: superjson,
-        async headers() {
-          // Attach Clerk JWT as Bearer token so the server can verify it
-          const token = await getToken();
-          return token ? { Authorization: `Bearer ${token}` } : {};
-        },
+  // Stable tRPC client — reads token lazily so it always has the latest JWT
+  const trpcClient = useMemo(
+    () =>
+      trpc.createClient({
+        links: [
+          httpBatchLink({
+            url: "/api/trpc",
+            transformer: superjson,
+            async headers() {
+              const token = await getToken();
+              return token ? { Authorization: `Bearer ${token}` } : {};
+            },
+          }),
+        ],
       }),
-    ],
-  });
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Track previous auth state so we only invalidate on actual changes
+  const prevIsSignedIn = useRef<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    if (!isLoaded) return; // Wait until Clerk has resolved
+    if (prevIsSignedIn.current === isSignedIn) return; // No change
+
+    // Auth state changed (sign-in or sign-out) — invalidate all cached queries
+    // so components re-fetch with the new auth context
+    if (prevIsSignedIn.current !== undefined) {
+      queryClient.invalidateQueries();
+    }
+    prevIsSignedIn.current = isSignedIn;
+  }, [isSignedIn, isLoaded]);
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>

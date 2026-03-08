@@ -57,7 +57,7 @@
 ## Sidebar UX
 - [x] Merge Import and Export into a single compact row with two icon buttons
 - [x] Move "Not financial advice" disclaimer from sidebar to Overview page
-- [ ] Move Import/Export/CloudSync under user profile strip; show sign-in prompt for unauthenticated users
+- [x] Move Import/Export/CloudSync under user profile strip; show sign-in prompt for unauthenticated users
 - [x] Rename app to "Project Retire" across sidebar, page title, HTML title, welcome modal
 - [x] Restructure sidebar: move Import/Export/CloudSync under user profile strip (with signed-out state)
 - [x] Sidebar: collapsible dropdown under username for Import/Export/CloudSync
@@ -67,3 +67,9 @@
 - [x] Sidebar: show cloud save status indicator in collapsed row when signed in
 - [x] Sidebar: remove Billing & Plans nav item during beta
 - [x] Create new favicon with "PR" initials and upward trend arrow
+
+## Bug Fixes
+- [x] Fix: auth state doesn't refresh after Clerk sign-in (requires manual page refresh)
+- [x] Fix: auto-save fires before cloud plan is loaded, overwriting cloud data with local placeholder
+- [x] Roll back bad cloud data saved by auto-save on login (fixed at source, no rollback needed)
+- [x] Add www.project-retire.com redirect via Cloudflare (301 redirect to project-retire.com)
