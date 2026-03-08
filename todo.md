@@ -209,3 +209,8 @@
 
 ## UX Improvements
 - [x] Stripe checkout: open in same tab (window.location.href) instead of new window
+
+## Checkout UX
+- [x] Billing page: detect ?checkout=success and show tier-aware success banner
+- [x] Billing page: detect ?checkout=canceled and show cancellation message
+- [x] Enable Stripe Customer Portal via API (bpc_1T8ZumAcBG3bVzNpfWx5Qr2G — cancel + payment method update + invoice history)

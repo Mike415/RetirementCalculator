@@ -5,8 +5,8 @@
  */
 
 import { useUser } from "@clerk/react";
-import { Check, X as XIcon, CreditCard, Loader2, Sparkles, Zap, Lock } from "lucide-react";
-import { useState } from "react";
+import { Check, X as XIcon, CreditCard, Loader2, Sparkles, Zap, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -165,10 +165,14 @@ function TierCard({
 export default function Billing() {
   const { isSignedIn } = useUser();
   const [loadingTier, setLoadingTier] = useState<"basic" | "pro" | null>(null);
+  const [checkoutStatus, setCheckoutStatus] = useState<"success" | "canceled" | null>(null);
   const { tier: currentTierFromHook } = useTierLimits();
 
   const profileQuery = trpc.user.profile.useQuery(undefined, {
     enabled: Boolean(isSignedIn),
+    // Refetch after successful checkout so the tier badge updates immediately
+    refetchInterval: checkoutStatus === "success" ? 2000 : false,
+    refetchIntervalInBackground: false,
   });
   const createCheckout = trpc.billing.createCheckout.useMutation();
   const createPortal = trpc.billing.createPortal.useMutation();
@@ -176,6 +180,18 @@ export default function Billing() {
   const currentTier = profileQuery.data?.planTier ?? "free";
   // Beta: treat all signed-in users as pro-level for feature access
   const isBeta = true;
+
+  // Detect ?checkout=success or ?checkout=canceled when Stripe redirects back
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("checkout");
+    if (status === "success" || status === "canceled") {
+      setCheckoutStatus(status);
+      // Clean the query param from the URL without a page reload
+      const clean = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, "", clean);
+    }
+  }, []);
 
   const handleUpgrade = async (tier: "basic" | "pro") => {
     if (!isSignedIn) {
@@ -222,6 +238,48 @@ export default function Billing() {
           Choose the plan that fits your retirement planning needs.
         </p>
       </div>
+
+      {/* Checkout success banner */}
+      {checkoutStatus === "success" && (
+        <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+          <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5 text-emerald-500" />
+          <div>
+            <p className="text-sm font-semibold">
+              You're now on {TIER_LABELS[currentTier] ?? currentTier} — welcome!
+            </p>
+            <p className="text-xs text-emerald-700 mt-0.5">
+              Your new features are active. It may take a moment for your plan badge to update.
+            </p>
+          </div>
+          <button
+            onClick={() => setCheckoutStatus(null)}
+            className="ml-auto p-1 rounded text-emerald-400 hover:text-emerald-600 transition-colors"
+            aria-label="Dismiss"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Checkout canceled banner */}
+      {checkoutStatus === "canceled" && (
+        <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-slate-400" />
+          <div>
+            <p className="text-sm font-semibold">No worries — your plan wasn't changed.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              You can upgrade any time using the buttons below.
+            </p>
+          </div>
+          <button
+            onClick={() => setCheckoutStatus(null)}
+            className="ml-auto p-1 rounded text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label="Dismiss"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Beta notice */}
       <div className="flex items-start gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200">
