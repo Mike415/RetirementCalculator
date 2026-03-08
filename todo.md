@@ -193,3 +193,6 @@
 - [x] Server: update user provisioning default from "pro" to "free"
 - [x] Sidebar: update beta badge to reflect "Beta — All features unlocked" (not "Pro features")
 - [x] Migrate existing beta-pro users back to free tier (or leave as-is if already paying)
+
+## Bug Fixes (Stripe)
+- [x] Fix: Stripe checkout throws "No such price: price_basic_placeholder" — STRIPE_PRICE_BASIC/PRO env vars added to production; products.ts now throws on missing env instead of using placeholders

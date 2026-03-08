@@ -22,13 +22,19 @@ export interface PlanProduct {
   features: string[];
 }
 
+function requireEnv(key: string): string {
+  const val = process.env[key];
+  if (!val) throw new Error(`Missing required environment variable: ${key}`);
+  return val;
+}
+
 export const PRODUCTS: PlanProduct[] = [
   {
     tier: "basic",
     name: "Basic",
     description: "Cloud save, PDF export, partner modeling",
     priceMonthly: 299, // $2.99/mo
-    stripePriceId: process.env.STRIPE_PRICE_BASIC ?? "price_basic_placeholder",
+    get stripePriceId() { return requireEnv("STRIPE_PRICE_BASIC"); },
     features: [
       "3 saved cloud plans",
       "4 budget periods",
@@ -44,7 +50,7 @@ export const PRODUCTS: PlanProduct[] = [
     name: "Pro",
     description: "Monte Carlo, Roth optimizer, unlimited plans",
     priceMonthly: 499, // $4.99/mo
-    stripePriceId: process.env.STRIPE_PRICE_PRO ?? "price_pro_placeholder",
+    get stripePriceId() { return requireEnv("STRIPE_PRICE_PRO"); },
     features: [
       "10 saved cloud plans",
       "10 budget periods",
