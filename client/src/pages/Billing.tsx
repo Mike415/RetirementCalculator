@@ -39,6 +39,8 @@ const FEATURE_ROWS: FeatureRow[] = [
   { label: "Home / mortgage entries", free: "1", basic: "1", pro: "Unlimited" },
   // Alt income
   { label: "Alternative income streams", free: "1", basic: "1", pro: "Unlimited" },
+  // Life events
+  { label: "One-time life events", free: "2", basic: "4", pro: "Unlimited" },
   // Core tools
   { label: "Retirement calculator", free: true, basic: true, pro: true },
   { label: "Tax-aware projections", free: true, basic: true, pro: true },

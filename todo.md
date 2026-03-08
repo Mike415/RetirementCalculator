@@ -214,3 +214,9 @@
 - [x] Billing page: detect ?checkout=success and show tier-aware success banner
 - [x] Billing page: detect ?checkout=canceled and show cancellation message
 - [x] Enable Stripe Customer Portal via API (bpc_1T8ZumAcBG3bVzNpfWx5Qr2G — cancel + payment method update + invoice history)
+
+## Tier Limits — Life Events
+- [x] Add lifeEvents to TIER_LIMITS: free=2, basic=4, pro=Infinity
+- [x] Enforce limit client-side in OneTimeEvents.tsx (data is local-first blob)
+- [x] Update Billing feature comparison table
+- [x] Surface limit in life events UI (count badge + disabled state when at limit)

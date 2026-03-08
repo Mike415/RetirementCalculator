@@ -10,9 +10,11 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { formatCurrency } from "@/lib/format";
 import { OneTimeEvent } from "@/lib/projection";
 import { cn } from "@/lib/utils";
-import { ArrowDownCircle, ArrowUpCircle, Plus, Trash2 } from "lucide-react";
+import { useTierLimits } from "@/hooks/useTierLimits";
+import { ArrowDownCircle, ArrowUpCircle, Lock, Plus, Trash2 } from "lucide-react";
 import { nanoid } from "nanoid";
 import React, { useEffect, useRef, useState } from "react";
+import { Link } from "wouter";
 
 // ─── Inline editable cell components ─────────────────────────────────────────
 
@@ -216,11 +218,16 @@ function EventRow({ event, currentAge, onUpdate, onRemove }: EventRowProps) {
 export default function OneTimeEvents() {
   const { inputs, updateInput, projection } = usePlanner();
   const events = inputs.oneTimeEvents ?? [];
+  const { limits, canAdd, storedTier, betaActive } = useTierLimits();
+
+  const maxEvents = limits.lifeEvents;
+  const atLimit = !canAdd("lifeEvents", events.length);
 
   const totalInflows  = events.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
   const totalOutflows = events.filter((e) => e.amount < 0).reduce((s, e) => s + e.amount, 0);
 
   const addEvent = (preset?: Omit<OneTimeEvent, "id">) => {
+    if (atLimit) return; // guard — buttons are also disabled
     const newEvent: OneTimeEvent = preset
       ? { ...preset, id: nanoid(8) }
       : {
@@ -285,17 +292,43 @@ export default function OneTimeEvents() {
           <div className="min-w-0">
             <h2 className="font-bold text-slate-800 text-base">Events</h2>
             <p className="text-xs text-slate-500 mt-0.5 leading-snug">
-              Applied to the specified account at the start of that age's projection year.
+              Applied to the specified account at the start of that age's projection year.{" "}
+              {maxEvents !== Infinity && (
+                <span className={cn("font-medium", atLimit ? "text-amber-600" : "text-slate-400")}>
+                  {events.length}/{maxEvents} used
+                </span>
+              )}
             </p>
           </div>
           <button
             onClick={() => addEvent()}
-            className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-[#1B4332] text-white text-xs font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors"
+            disabled={atLimit}
+            className={cn(
+              "flex-shrink-0 flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg transition-colors",
+              atLimit
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                : "bg-[#1B4332] text-white hover:bg-[#2D6A4F]"
+            )}
           >
-            <Plus className="w-3.5 h-3.5" />
+            {atLimit ? <Lock className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
             Add Event
           </button>
         </div>
+
+        {/* Limit reached banner */}
+        {atLimit && !betaActive && (
+          <div className="px-4 sm:px-6 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+            <Lock className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <p className="text-xs text-amber-800">
+              {storedTier === "free"
+                ? `Free accounts are limited to ${maxEvents} life events.`
+                : `Basic accounts are limited to ${maxEvents} life events.`}{" "}
+              <Link href="/billing" className="font-semibold underline underline-offset-2 hover:text-amber-900">
+                Upgrade to add more.
+              </Link>
+            </p>
+          </div>
+        )}
 
         {events.length === 0 ? (
           <div className="px-6 py-12 text-center">
@@ -334,15 +367,17 @@ export default function OneTimeEvents() {
         )}
 
         {/* Add row footer */}
-        <div className="px-4 sm:px-6 py-3 border-t border-slate-100">
-          <button
-            onClick={() => addEvent()}
-            className="flex items-center gap-2 text-sm text-[#1B4332] font-medium hover:text-[#2D6A4F] transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Event
-          </button>
-        </div>
+        {!atLimit && (
+          <div className="px-4 sm:px-6 py-3 border-t border-slate-100">
+            <button
+              onClick={() => addEvent()}
+              className="flex items-center gap-2 text-sm text-[#1B4332] font-medium hover:text-[#2D6A4F] transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Event
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Presets */}
@@ -358,7 +393,13 @@ export default function OneTimeEvents() {
               <button
                 key={preset.label}
                 onClick={() => addEvent(preset)}
-                className="flex items-start gap-2.5 p-3 rounded-lg border border-slate-200 hover:border-[#1B4332]/30 hover:bg-slate-50 text-left transition-all group"
+                disabled={atLimit}
+                className={cn(
+                  "flex items-start gap-2.5 p-3 rounded-lg border text-left transition-all group",
+                  atLimit
+                    ? "border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed"
+                    : "border-slate-200 hover:border-[#1B4332]/30 hover:bg-slate-50"
+                )}
               >
                 {isInflow
                   ? <ArrowUpCircle className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />

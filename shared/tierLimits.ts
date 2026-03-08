@@ -33,11 +33,11 @@ export function betaEffectiveTier(storedTier: Tier): Tier {
 
 /** Numeric limits per tier */
 export const TIER_LIMITS = {
-  signedOut: { plans: 0, budgetPeriods: 2, homes: 1, altIncome: 1 },
-  free:      { plans: 1, budgetPeriods: 2, homes: 1, altIncome: 1 },
-  basic:     { plans: 3, budgetPeriods: 4, homes: 1, altIncome: 1 },
-  pro:       { plans: 10, budgetPeriods: 10, homes: Infinity, altIncome: Infinity },
-} as const satisfies Record<Tier, { plans: number; budgetPeriods: number; homes: number; altIncome: number }>;
+  signedOut: { plans: 0, budgetPeriods: 2, homes: 1, altIncome: 1, lifeEvents: 2 },
+  free:      { plans: 1, budgetPeriods: 2, homes: 1, altIncome: 1, lifeEvents: 2 },
+  basic:     { plans: 3, budgetPeriods: 4, homes: 1, altIncome: 1, lifeEvents: 4 },
+  pro:       { plans: 10, budgetPeriods: 10, homes: Infinity, altIncome: Infinity, lifeEvents: Infinity },
+} as const satisfies Record<Tier, { plans: number; budgetPeriods: number; homes: number; altIncome: number; lifeEvents: number }>;
 
 /** Boolean feature flags per tier */
 export const TIER_FEATURES = {
