@@ -220,3 +220,7 @@
 - [x] Enforce limit client-side in OneTimeEvents.tsx (data is local-first blob)
 - [x] Update Billing feature comparison table
 - [x] Surface limit in life events UI (count badge + disabled state when at limit)
+
+## Bug Fixes — Stripe Checkout
+- [x] Fix: success_url/cancel_url now point to /#/billing?checkout=success/canceled (hash routing)
+- [x] Fix: added verifyCheckout tRPC mutation — on checkout=success, client calls Stripe directly to update tier immediately (webhook fallback)

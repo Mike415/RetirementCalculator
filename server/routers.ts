@@ -3,7 +3,7 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { PRODUCTS } from "./products";
-import { createCheckoutSession, createPortalSession } from "./stripe";
+import { createCheckoutSession, createPortalSession, verifyCheckoutSession } from "./stripe";
 
 // ─── Tier helpers ─────────────────────────────────────────────────────────────
 
@@ -144,6 +144,30 @@ export const appRouter = router({
           origin: input.origin,
         });
         return { url };
+      }),
+
+    /**
+     * Verify a completed Stripe checkout session and immediately update the user's tier.
+     * This is a client-side fallback for when the webhook is delayed or misconfigured.
+     * The session is verified directly with Stripe — the user can only update their own tier.
+     */
+    verifyCheckout: protectedProcedure
+      .input(z.object({ sessionId: z.string().optional() }))
+      .mutation(async ({ ctx }) => {
+        // Re-fetch the user's latest subscription state from Stripe
+        const result = await verifyCheckoutSession(ctx.user.id, ctx.user.stripeCustomerId ?? undefined);
+        if (result) {
+          await db.updateUserTier(
+            ctx.user.id,
+            result.tier,
+            result.customerId,
+            result.subscriptionId,
+            result.subscriptionEndsAt
+          );
+          console.log(`[verifyCheckout] Updated user ${ctx.user.id} to ${result.tier}`);
+          return { tier: result.tier, updated: true };
+        }
+        return { tier: ctx.user.planTier, updated: false };
       }),
 
     /** Create a Stripe Customer Portal session for managing subscriptions. */

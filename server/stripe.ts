@@ -195,12 +195,71 @@ export async function createCheckoutSession(params: {
       customer_email: params.userEmail ?? "",
       customer_name: params.userName ?? "",
     },
-    success_url: `${params.origin}/?checkout=success&tier=${params.tier}`,
-    cancel_url: `${params.origin}/?checkout=cancelled`,
+    success_url: `${params.origin}/#/billing?checkout=success&tier=${params.tier}`,
+    cancel_url: `${params.origin}/#/billing?checkout=canceled`,
   });
 
   if (!session.url) throw new Error("Stripe did not return a checkout URL");
   return session.url;
+}
+
+/**
+ * Verify a user's current Stripe subscription state by looking up their customer ID.
+ * Returns the active tier, customerId, subscriptionId, and end date — or null if no active sub.
+ * Used as a client-side fallback when the webhook hasn't fired yet.
+ */
+export async function verifyCheckoutSession(
+  userId: number,
+  stripeCustomerId: string | undefined
+): Promise<{
+  tier: "basic" | "pro";
+  customerId: string;
+  subscriptionId: string;
+  subscriptionEndsAt: Date | undefined;
+} | null> {
+  if (!stripeCustomerId) {
+    console.log(`[verifyCheckout] No stripeCustomerId for user ${userId}`);
+    return null;
+  }
+
+  const stripe = getStripe();
+
+  // List active subscriptions for this customer
+  const subs = await stripe.subscriptions.list({
+    customer: stripeCustomerId,
+    status: "active",
+    limit: 5,
+    expand: ["data.items.data.price.product"],
+  });
+
+  if (subs.data.length === 0) {
+    console.log(`[verifyCheckout] No active subscriptions for customer ${stripeCustomerId}`);
+    return null;
+  }
+
+  const sub = subs.data[0];
+  // Determine tier from metadata or price ID
+  let tier: "basic" | "pro" | undefined = sub.metadata?.tier as "basic" | "pro" | undefined;
+  if (!tier) {
+    // Fall back: match price ID against known products
+    const priceId = sub.items.data[0]?.price?.id;
+    const basicPriceId = process.env.STRIPE_PRICE_BASIC;
+    const proPriceId = process.env.STRIPE_PRICE_PRO;
+    if (priceId === basicPriceId) tier = "basic";
+    else if (priceId === proPriceId) tier = "pro";
+  }
+
+  if (!tier) {
+    console.warn(`[verifyCheckout] Could not determine tier for subscription ${sub.id}`);
+    return null;
+  }
+
+  return {
+    tier,
+    customerId: stripeCustomerId,
+    subscriptionId: sub.id,
+    subscriptionEndsAt: sub.cancel_at ? new Date(sub.cancel_at * 1000) : undefined,
+  };
 }
 
 export async function createPortalSession(params: {
