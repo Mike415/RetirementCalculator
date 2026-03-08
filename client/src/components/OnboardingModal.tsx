@@ -96,7 +96,6 @@ export default function OnboardingModal({ onDismiss }: Props) {
               <h1 className="text-xl font-bold leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
                 Project Retire
               </h1>
-              <p className="text-white/70 text-xs mt-0.5">Free, private, no account required</p>
             </div>
           </div>
           <p className="text-white/85 text-sm leading-relaxed">
@@ -134,7 +133,7 @@ export default function OnboardingModal({ onDismiss }: Props) {
         {/* CTA */}
         <div className="px-6 pb-6 flex items-center justify-between gap-4">
           <p className="text-[11px] text-slate-400 leading-snug">
-            Your data stays in your browser. Nothing is sent to a server.
+            Sign in to sync your plan across devices.
           </p>
           <button
             onClick={dismiss}
