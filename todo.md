@@ -177,3 +177,8 @@
 
 - [x] Fix: login requires a page refresh before app state updates — replaced hard reload with tRPC query invalidation on isSignedIn transition
 - [x] Fix: login still requires a page refresh — root cause was SignInButton rendering outside React tree; replaced with clerk.openSignIn() in Sidebar, TierGate, CloudSync, Plans
+
+## Stripe Webhook & Subscription Management
+- [ ] Register Stripe webhook in Dashboard pointing to production /api/stripe/webhook
+- [ ] Add "Manage Subscription" button to Billing page (opens Stripe Customer Portal)
+- [ ] Verify Customer Portal is enabled in Stripe Dashboard settings

@@ -25,7 +25,9 @@ export function registerStripeWebhook(app: Express) {
     express.raw({ type: "application/json" }),
     async (req: Request, res: Response) => {
       const sig = req.headers["stripe-signature"] as string;
-      const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+      // Prefer the production-specific secret if set (overrides platform-managed default)
+      const webhookSecret =
+        process.env.STRIPE_WEBHOOK_SECRET_PROD || process.env.STRIPE_WEBHOOK_SECRET;
 
       let event: Stripe.Event;
 
