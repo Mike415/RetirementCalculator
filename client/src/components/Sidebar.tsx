@@ -1,14 +1,13 @@
 /**
  * Sidebar — Navigation for Project Retire
  * Design: "Horizon" — Warm Modernist Financial Planning
- * Forest green sidebar with warm off-white text, Playfair Display headings
  *
  * Layout:
  *  1. Brand logo
- *  2. User data section (profile + CloudSync + Import/Export when signed in;
- *     sign-in prompt + Import/Export when signed out)
+ *  2. User strip — clicking the row toggles a dropdown with CloudSync + Import/Export
+ *     (when signed out: compact sign-in prompt with same dropdown for Import/Export)
  *  3. Navigation
- *  4. Footer (Reset + Beta badge + local note)
+ *  4. Footer (Reset + Beta badge)
  */
 
 import CloudSync from "@/components/CloudSync";
@@ -20,6 +19,7 @@ import {
   BookOpen,
   Briefcase,
   CalendarClock,
+  ChevronDown,
   CreditCard,
   DollarSign,
   Download,
@@ -90,6 +90,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const { resetToDefaults, exportPlan, importPlan, inputs } = usePlanner();
   const [location] = useLocation();
   const [confirming, setConfirming] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isSignedIn, user } = useUser();
 
@@ -118,28 +119,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const isActive = (path: string) =>
     location === path || (location === "/" && path === "/overview");
 
-  /** Compact Import / Export row — always visible regardless of auth state */
-  const ImportExportRow = (
-    <div className="grid grid-cols-2 gap-1.5 mt-2">
-      <button
-        onClick={exportPlan}
-        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-        title="Export plan (.json)"
-      >
-        <Download className="w-3 h-3 flex-shrink-0" />
-        Export
-      </button>
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
-        title="Import plan (.json)"
-      >
-        <Upload className="w-3 h-3 flex-shrink-0" />
-        Import
-      </button>
-    </div>
-  );
-
   return (
     <aside
       className={cn(
@@ -159,21 +138,27 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         </Link>
       </div>
 
-      {/* ── User data section ─────────────────────────────────────────────── */}
-      <div className="px-4 py-3 border-b border-white/10 space-y-0">
+      {/* ── User strip + dropdown ──────────────────────────────────────────── */}
+      <div className="border-b border-white/10">
         {isSignedIn && user ? (
           <>
-            {/* Profile row */}
-            <div className="flex items-center gap-2.5">
-              <UserButton
-                appearance={{
-                  elements: {
-                    avatarBox: "w-7 h-7",
-                    userButtonPopoverCard: "shadow-xl",
-                  },
-                }}
-              />
-              <div className="flex-1 min-w-0">
+            {/* Clickable profile row */}
+            <button
+              onClick={() => setDropdownOpen((o) => !o)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
+            >
+              {/* Stop click from bubbling to the button when Clerk popover opens */}
+              <span onClick={(e) => e.stopPropagation()}>
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-7 h-7",
+                      userButtonPopoverCard: "shadow-xl",
+                    },
+                  }}
+                />
+              </span>
+              <div className="flex-1 min-w-0 text-left">
                 <p className="text-xs font-medium text-white/90 truncate">
                   {user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Account"}
                 </p>
@@ -181,33 +166,105 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                   {user.primaryEmailAddress?.emailAddress}
                 </p>
               </div>
-            </div>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 text-white/30 flex-shrink-0 transition-transform duration-200",
+                  dropdownOpen && "rotate-180"
+                )}
+              />
+            </button>
 
-            {/* Cloud Sync (auto-save status + save/load buttons) */}
-            <div className="mt-2">
-              <CloudSync />
-            </div>
+            {/* Dropdown panel */}
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-200 ease-in-out",
+                dropdownOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+              )}
+            >
+              <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
+                {/* Cloud Sync */}
+                <CloudSync />
 
-            {/* Import / Export */}
-            {ImportExportRow}
+                {/* Import / Export */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={exportPlan}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+                    title="Export plan (.json)"
+                  >
+                    <Download className="w-3 h-3 flex-shrink-0" />
+                    Export
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+                    title="Import plan (.json)"
+                  >
+                    <Upload className="w-3 h-3 flex-shrink-0" />
+                    Import
+                  </button>
+                </div>
+              </div>
+            </div>
           </>
         ) : (
           <>
-            {/* Sign-in prompt */}
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] text-white/50 leading-snug">
-                Sign in to sync your plan across devices.
+            {/* Sign-in prompt row */}
+            <button
+              onClick={() => setDropdownOpen((o) => !o)}
+              className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-white/5 transition-colors"
+            >
+              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                <LogIn className="w-3.5 h-3.5 text-white/50" />
+              </div>
+              <p className="flex-1 text-left text-[11px] text-white/50 leading-snug">
+                Sign in to sync
               </p>
-              <SignInButton mode="modal">
-                <button className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#D97706] text-white text-[11px] font-semibold hover:bg-[#B45309] transition-colors">
-                  <LogIn className="w-3 h-3" />
-                  Sign in
-                </button>
-              </SignInButton>
-            </div>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 text-white/30 flex-shrink-0 transition-transform duration-200",
+                  dropdownOpen && "rotate-180"
+                )}
+              />
+            </button>
 
-            {/* Import / Export still available without account */}
-            {ImportExportRow}
+            {/* Dropdown panel for signed-out state */}
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-200 ease-in-out",
+                dropdownOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+              )}
+            >
+              <div className="px-4 pb-3 space-y-2 border-t border-white/8 pt-2">
+                {/* Sign-in CTA */}
+                <SignInButton mode="modal">
+                  <button className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D97706] text-white text-xs font-semibold hover:bg-[#B45309] transition-colors">
+                    <LogIn className="w-3.5 h-3.5" />
+                    Sign in to sync your plan
+                  </button>
+                </SignInButton>
+
+                {/* Import / Export still available without account */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    onClick={exportPlan}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+                    title="Export plan (.json)"
+                  >
+                    <Download className="w-3 h-3 flex-shrink-0" />
+                    Export
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/50 hover:bg-white/8 hover:text-white/80 transition-all duration-150 border border-white/10"
+                    title="Import plan (.json)"
+                  >
+                    <Upload className="w-3 h-3 flex-shrink-0" />
+                    Import
+                  </button>
+                </div>
+              </div>
+            </div>
           </>
         )}
       </div>
@@ -287,10 +344,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
             Beta — Pro features unlocked
           </span>
         </div>
-
-        <p className="px-1 text-[10px] text-white/30 leading-relaxed">
-          Values auto-saved locally in your browser.
-        </p>
       </div>
 
       {/* Hidden file input for import */}
