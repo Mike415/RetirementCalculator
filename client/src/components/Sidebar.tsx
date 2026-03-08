@@ -14,6 +14,7 @@ import { usePlanner } from "@/contexts/PlannerContext";
 import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { cn } from "@/lib/utils";
 import { UserButton, useClerk, useUser } from "@clerk/react";
+import { trpc } from "@/lib/trpc";
 import {
   BarChart3,
   BookOpen,
@@ -34,6 +35,7 @@ import {
   RotateCcw,
   Settings2,
   ShieldCheck,
+  Shield,
   Sparkles,
   TrendingUp,
   Upload,
@@ -99,6 +101,8 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isSignedIn, user } = useUser();
   const { signOut, openSignIn } = useClerk();
+  const { data: dbUser } = trpc.auth.me.useQuery(undefined, { enabled: isSignedIn === true });
+  const isAdmin = dbUser?.role === "admin";
 
   const handleReset = () => {
     if (!confirming) {
@@ -304,6 +308,23 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                         {confirming ? "Click again to confirm" : "Reset to defaults"}
                       </span>
                     </button>
+                  )}
+
+                  {/* Admin portal — only for admins */}
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={onNavigate}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                        isActive("/admin")
+                          ? "bg-white/15 text-white shadow-sm"
+                          : "text-white/65 hover:bg-white/8 hover:text-white/90"
+                      )}
+                    >
+                      <Shield className={cn("w-4 h-4 flex-shrink-0", isActive("/admin") ? "text-[#D97706]" : "text-white/50")} />
+                      <span className="flex-1 truncate">Admin Portal</span>
+                    </Link>
                   )}
 
                   {/* Sign out — only when signed in */}

@@ -1,4 +1,5 @@
 import {
+  boolean,
   int,
   json,
   mysqlEnum,
@@ -29,6 +30,11 @@ export const users = mysqlTable("users", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  /**
+   * Per-user beta override. When set, overrides BETA_FEATURES_UNLOCKED for this user.
+   * null = follow global flag, true = beta on, false = beta off.
+   */
+  betaOverride: boolean("betaOverride"),
 });
 
 export type User = typeof users.$inferSelect;
@@ -66,3 +72,41 @@ export const planVersions = mysqlTable("planVersions", {
 
 export type PlanVersion = typeof planVersions.$inferSelect;
 export type InsertPlanVersion = typeof planVersions.$inferInsert;
+
+/**
+ * Page view events for analytics.
+ * Lightweight: just path + session + optional userId.
+ */
+export const pageViews = mysqlTable("pageViews", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Anonymous session fingerprint (stored in localStorage). */
+  sessionId: varchar("sessionId", { length: 64 }).notNull(),
+  /** Authenticated user ID if signed in. */
+  userId: int("userId"),
+  /** Hash path, e.g. /overview, /billing */
+  path: varchar("path", { length: 255 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PageView = typeof pageViews.$inferSelect;
+export type InsertPageView = typeof pageViews.$inferInsert;
+
+/**
+ * Stripe subscription events for analytics (cancellations, resubscriptions).
+ * Written by the webhook handler.
+ */
+export const stripeEvents = mysqlTable("stripeEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
+  /** checkout.completed | subscription.canceled | subscription.reactivated */
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  tier: mysqlEnum("tier", ["free", "basic", "pro"]),
+  /** Amount in cents (for revenue tracking). */
+  amountCents: int("amountCents"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type StripeEvent = typeof stripeEvents.$inferSelect;
+export type InsertStripeEvent = typeof stripeEvents.$inferInsert;

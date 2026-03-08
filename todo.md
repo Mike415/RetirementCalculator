@@ -227,3 +227,19 @@
 
 ## Bug Fixes — Routing
 - [x] Fix: 404 on /#/billing — root cause was wouter treating query strings as path segments; fixed by using sessionStorage for checkout intent instead of URL params; success_url/cancel_url now use clean /#/billing
+
+## Admin Portal
+- [x] DB: add pageViews table (sessionId, userId, path, createdAt) for analytics
+- [x] DB: add admin role guard (adminProcedure) in tRPC
+- [x] DB: add betaOverride column to users table (per-user beta toggle)
+- [x] Server: admin.analytics procedure (page views, unique visitors, signups, revenue, cancellations, resubscriptions)
+- [x] Server: admin.users.list procedure (all users with tier, signup date, Stripe data)
+- [x] Server: admin.users.setTier mutation
+- [x] Server: admin.users.setBeta mutation (per-user beta override)
+- [x] Server: admin.users.getDetail procedure (payments, feature usage)
+- [x] Client: /admin route with admin guard (redirect non-admins)
+- [x] Client: Admin portal with Analytics and Users tabs
+- [x] Client: Analytics page with date range picker and charts
+- [x] Client: Users list page with search, tier badge, beta toggle
+- [x] Client: User detail drawer/modal with payment history and feature usage
+- [x] Client: Add /admin link to sidebar (admin-only, visible only to admin role)

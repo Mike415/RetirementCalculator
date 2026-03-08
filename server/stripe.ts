@@ -7,6 +7,8 @@ import Stripe from "stripe";
 import type { Express, Request, Response } from "express";
 import express from "express";
 import * as db from "./db";
+import { getDb } from "./db";
+import { stripeEvents } from "../drizzle/schema";
 import { getProductByTier } from "./products";
 
 /** Resolve a DB user ID from Stripe event metadata, falling back to customer ID lookup. */
@@ -132,6 +134,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       : undefined
   );
 
+  // Record analytics event
+  const dbConn = await getDb();
+  if (dbConn) {
+    const product = getProductByTier(tier);
+    await dbConn.insert(stripeEvents).values({
+      userId,
+      stripeCustomerId: session.customer as string | undefined,
+      stripeSubscriptionId: subscription?.id,
+      eventType: "checkout.completed",
+      tier,
+      amountCents: product?.priceMonthly ?? undefined,
+    });
+  }
+
   console.log(`[Webhook] User ${userId} upgraded to ${tier}`);
 }
 
@@ -155,6 +171,20 @@ async function handleSubscriptionChange(sub: Stripe.Subscription) {
     isActive ? sub.id : undefined,
     sub.cancel_at ? new Date(sub.cancel_at * 1000) : undefined
   );
+
+  // Record analytics event
+  const dbConn = await getDb();
+  if (dbConn) {
+    const eventType = isActive ? "subscription.reactivated" : "subscription.canceled";
+    await dbConn.insert(stripeEvents).values({
+      userId,
+      stripeCustomerId: sub.customer as string | undefined,
+      stripeSubscriptionId: sub.id,
+      eventType,
+      tier: tier ?? "free",
+      amountCents: null,
+    });
+  }
 
   console.log(`[Webhook] Subscription ${sub.status} for user ${userId}`);
 }

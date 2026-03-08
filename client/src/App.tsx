@@ -34,12 +34,16 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import OnboardingModal, { isFirstVisit } from "./components/OnboardingModal";
 import { cn } from "@/lib/utils";
-import { Route, Switch, Redirect, Router } from "wouter";
+import { Route, Switch, Redirect, Router, useLocation } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
+import Admin from "./pages/Admin";
+import { usePageViewTracker } from "./hooks/usePageViewTracker";
 
 function PlannerApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(() => isFirstVisit());
+  const [location] = useLocation();
+  usePageViewTracker(location);
   // make sure to consider if you need authentication for certain routes
   return (
     <div className="flex h-[100dvh] bg-[#FAFAF8] overflow-hidden">
@@ -95,6 +99,7 @@ function PlannerApp() {
               <Route path="/billing" component={Billing} />
               <Route path="/faq" component={FAQ} />
               <Route path="/plans" component={Plans} />
+              <Route path="/admin" component={Admin} />
               <Route component={NotFound} />
             </Switch>
           </div>

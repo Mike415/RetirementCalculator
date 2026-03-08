@@ -3,6 +3,9 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { PRODUCTS } from "./products";
+import { adminRouter } from "./routers/admin";
+import { getDb } from "./db";
+import { pageViews } from "../drizzle/schema";
 import { createCheckoutSession, createPortalSession, verifyCheckoutSession } from "./stripe";
 
 // ─── Tier helpers ─────────────────────────────────────────────────────────────
@@ -187,6 +190,33 @@ export const appRouter = router({
         return { url };
       }),
   }),
+
+  // ─── Page view tracking ────────────────────────────────────────────────────
+
+  analytics: router({
+    /** Record a page view. Called by the client on route change. */
+    trackPageView: publicProcedure
+      .input(
+        z.object({
+          sessionId: z.string().min(1).max(64),
+          path: z.string().min(1).max(255),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const dbConn = await getDb();
+        if (!dbConn) return { ok: false };
+        await dbConn.insert(pageViews).values({
+          sessionId: input.sessionId,
+          userId: ctx.user?.id ?? null,
+          path: input.path,
+        });
+        return { ok: true };
+      }),
+  }),
+
+  // ─── Admin ─────────────────────────────────────────────────────────────────
+
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;
