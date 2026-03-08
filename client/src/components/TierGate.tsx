@@ -10,10 +10,8 @@
  * When locked=false, renders children normally.
  */
 import { Lock } from "lucide-react";
-import { useLocation } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { SignInButton } from "@clerk/react";
+import { useClerk } from "@clerk/react";
 import { cn } from "@/lib/utils";
 
 interface TierGateProps {
@@ -30,6 +28,7 @@ interface TierGateProps {
 
 export function TierGate({ locked, cta, signedOut, className, children }: TierGateProps) {
   const [, navigate] = useHashLocation();
+  const { openSignIn } = useClerk();
 
   if (!locked) return <>{children}</>;
 
@@ -48,11 +47,12 @@ export function TierGate({ locked, cta, signedOut, className, children }: TierGa
           </div>
           <p className="text-sm font-medium text-slate-700">{cta}</p>
           {signedOut ? (
-            <SignInButton mode="modal">
-              <button className="px-4 py-2 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors">
-                Sign In
-              </button>
-            </SignInButton>
+            <button
+              onClick={() => openSignIn()}
+              className="px-4 py-2 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors"
+            >
+              Sign In
+            </button>
           ) : (
             <button
               onClick={() => navigate("/billing")}
@@ -81,6 +81,7 @@ interface TierGateBannerProps {
 
 export function TierGateBanner({ locked, cta, signedOut, children, className }: TierGateBannerProps) {
   const [, navigate] = useHashLocation();
+  const { openSignIn } = useClerk();
 
   if (!locked) return <>{children}</>;
 
@@ -88,12 +89,13 @@ export function TierGateBanner({ locked, cta, signedOut, children, className }: 
     <div className={cn("flex items-center gap-2", className)}>
       <div className="opacity-40 pointer-events-none select-none">{children}</div>
       {signedOut ? (
-        <SignInButton mode="modal">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1B4332] bg-[#1B4332]/10 border border-[#1B4332]/20 rounded-lg hover:bg-[#1B4332]/20 transition-colors whitespace-nowrap">
-            <Lock className="w-3 h-3" />
-            Sign in
-          </button>
-        </SignInButton>
+        <button
+          onClick={() => openSignIn()}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#1B4332] bg-[#1B4332]/10 border border-[#1B4332]/20 rounded-lg hover:bg-[#1B4332]/20 transition-colors whitespace-nowrap"
+        >
+          <Lock className="w-3 h-3" />
+          Sign in
+        </button>
       ) : (
         <button
           onClick={() => navigate("/billing")}

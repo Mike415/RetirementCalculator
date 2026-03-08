@@ -14,7 +14,7 @@ import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
-import { SignInButton, useUser } from "@clerk/react";
+import { useClerk, useUser } from "@clerk/react";
 import {
   CheckCircle2,
   Clock,
@@ -463,6 +463,7 @@ function VersionHistoryModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Plans() {
   const { isSignedIn, isLoaded } = useUser();
+  const { openSignIn } = useClerk();
   const { inputs, importFromObject } = usePlanner();
   const { cloudPlanId, doSave } = useCloudSyncContext();
   const [showNewModal, setShowNewModal] = useState(false);
@@ -636,12 +637,13 @@ export default function Plans() {
         <p className="text-sm text-slate-500 leading-relaxed">
           Sign in to save multiple retirement scenarios to the cloud and switch between them at any time.
         </p>
-        <SignInButton mode="modal">
-          <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1B4332] text-white text-sm font-semibold hover:bg-[#2D6A4F] transition-colors">
-            <LogIn className="w-4 h-4" />
-            Sign in to get started
-          </button>
-        </SignInButton>
+        <button
+          onClick={() => openSignIn()}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1B4332] text-white text-sm font-semibold hover:bg-[#2D6A4F] transition-colors"
+        >
+          <LogIn className="w-4 h-4" />
+          Sign in to get started
+        </button>
       </div>
     );
   }

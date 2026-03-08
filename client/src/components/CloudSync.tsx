@@ -13,7 +13,7 @@
  * When signed out, shows a sign-in prompt.
  */
 
-import { SignInButton, useUser } from "@clerk/react";
+import { useClerk, useUser } from "@clerk/react";
 import { Cloud, CloudDownload, CloudUpload, Loader2, LogIn } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -32,6 +32,7 @@ interface CloudSyncProps {
 
 export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
   const { isSignedIn, isLoaded } = useUser();
+  const { openSignIn } = useClerk();
   const { inputs, importFromObject } = usePlanner();
   const [status, setStatus] = useState<SyncStatus>("idle");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -234,12 +235,13 @@ export default function CloudSync({ onStatusChange }: CloudSyncProps = {}) {
         <p className="text-[10px] text-white/40 leading-relaxed mb-2">
           Sign in to save your plan to the cloud and access it from any device.
         </p>
-        <SignInButton mode="modal">
-          <button className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-[#D97706] text-white text-xs font-medium hover:bg-[#B45309] transition-colors">
-            <LogIn className="w-3 h-3" />
-            Sign in to sync
-          </button>
-        </SignInButton>
+        <button
+          onClick={() => openSignIn()}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-[#D97706] text-white text-xs font-medium hover:bg-[#B45309] transition-colors"
+        >
+          <LogIn className="w-3 h-3" />
+          Sign in to sync
+        </button>
       </div>
     );
   }

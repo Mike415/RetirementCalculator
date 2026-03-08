@@ -176,3 +176,4 @@
 ## Auth Bug Fixes
 
 - [x] Fix: login requires a page refresh before app state updates — replaced hard reload with tRPC query invalidation on isSignedIn transition
+- [ ] Fix: login still requires a page refresh after tRPC invalidation attempt — needs deeper investigation

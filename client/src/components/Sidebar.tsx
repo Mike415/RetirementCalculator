@@ -13,7 +13,7 @@
 import { usePlanner } from "@/contexts/PlannerContext";
 import { useCloudSyncContext } from "@/contexts/CloudSyncContext";
 import { cn } from "@/lib/utils";
-import { SignInButton, UserButton, useClerk, useUser } from "@clerk/react";
+import { UserButton, useClerk, useUser } from "@clerk/react";
 import {
   BarChart3,
   BookOpen,
@@ -96,7 +96,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const [confirming, setConfirming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isSignedIn, user } = useUser();
-  const { signOut } = useClerk();
+  const { signOut, openSignIn } = useClerk();
 
   const handleReset = () => {
     if (!confirming) {
@@ -204,12 +204,13 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         ) : (
           /* Signed-out: simple Sign In button */
           <div className="px-4 py-3">
-            <SignInButton mode="modal">
-              <button className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D97706] text-white text-xs font-semibold hover:bg-[#B45309] transition-colors">
-                <LogIn className="w-3.5 h-3.5" />
-                Sign in to save your plan
-              </button>
-            </SignInButton>
+            <button
+              onClick={() => openSignIn()}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#D97706] text-white text-xs font-semibold hover:bg-[#B45309] transition-colors"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Sign in to save your plan
+            </button>
           </div>
         )}
       </div>
