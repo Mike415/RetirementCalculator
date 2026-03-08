@@ -204,6 +204,20 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                     Import
                   </button>
                 </div>
+
+                {/* Reset to defaults */}
+                <button
+                  onClick={handleReset}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border",
+                    confirming
+                      ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
+                      : "text-white/40 border-white/10 hover:bg-white/8 hover:text-white/70"
+                  )}
+                >
+                  <RotateCcw className="w-3 h-3 flex-shrink-0" />
+                  {confirming ? "Click again to confirm" : "Reset to defaults"}
+                </button>
               </div>
             </div>
           </>
@@ -263,6 +277,20 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                     Import
                   </button>
                 </div>
+
+                {/* Reset to defaults */}
+                <button
+                  onClick={handleReset}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all duration-150 border",
+                    confirming
+                      ? "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
+                      : "text-white/40 border-white/10 hover:bg-white/8 hover:text-white/70"
+                  )}
+                >
+                  <RotateCcw className="w-3 h-3 flex-shrink-0" />
+                  {confirming ? "Click again to confirm" : "Reset to defaults"}
+                </button>
               </div>
             </div>
           </>
@@ -323,20 +351,6 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
 
       {/* ── Footer ────────────────────────────────────────────────────────── */}
       <div className="px-4 py-3 border-t border-white/10 space-y-2">
-        {/* Reset */}
-        <button
-          onClick={handleReset}
-          className={cn(
-            "w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150",
-            confirming
-              ? "bg-red-500/20 text-red-300 hover:bg-red-500/30"
-              : "text-white/40 hover:bg-white/8 hover:text-white/70"
-          )}
-        >
-          <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
-          {confirming ? "Click again to confirm reset" : "Reset to defaults"}
-        </button>
-
         {/* Beta badge */}
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D97706]/15 border border-[#D97706]/25">
           <Sparkles className="w-3 h-3 text-[#D97706] flex-shrink-0" />
