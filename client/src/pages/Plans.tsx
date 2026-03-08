@@ -16,6 +16,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import { useClerk, useUser } from "@clerk/react";
 import {
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Copy,
@@ -516,6 +517,11 @@ export default function Plans() {
   const usedPlans = plansList.length;
   const canCreate = usedPlans < maxPlans;
 
+  // Over-limit: user has more plans than their current tier allows.
+  // This happens when a paying user cancels and reverts to free.
+  // We still allow saves to existing plans — only new creation is blocked.
+  const isOverLimit = usedPlans > maxPlans;
+
   // ── Load a plan into the active session ────────────────────────────────────
   const handleLoad = async (plan: PlanMeta) => {
     setLoadingPlanId(plan.id);
@@ -668,6 +674,24 @@ export default function Plans() {
           New plan
         </button>
       </div>
+
+      {/* Over-limit banner — shown when a downgraded user has more plans than their tier allows */}
+      {isOverLimit && (
+        <div className="flex items-start gap-3 px-4 py-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-amber-500" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold">
+              You have {usedPlans} saved plan{usedPlans !== 1 ? "s" : ""} but your current plan allows {maxPlans}.
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+              Your plans are safe and you can still edit them. Creating new plans is paused until you're within your limit.
+              {" "}
+              <a href="#/billing" className="underline font-semibold hover:text-amber-900">Upgrade to restore full access</a>
+              {" or delete "}{usedPlans - maxPlans}{" plan"}{usedPlans - maxPlans !== 1 ? "s" : ""}{" to stay on your current plan."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Plan limit bar */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3">

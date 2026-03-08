@@ -70,7 +70,10 @@ export const appRouter = router({
         return { planId };
       }),
 
-    /** Save (overwrite) an existing plan. Snapshots the previous version. */
+    /** Save (overwrite) an existing plan. Snapshots the previous version.
+     * No tier check here — downgraded users must still be able to save edits
+     * to plans they already own. New plan creation is gated instead.
+     */
     save: protectedProcedure
       .input(
         z.object({
@@ -80,7 +83,6 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        requireTier(ctx.user.planTier, "basic");
         const plan = await db.getPlan(input.planId, ctx.user.id);
         if (!plan) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Plan not found." });

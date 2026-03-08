@@ -199,3 +199,10 @@
 
 ## Bug Fixes (Env / Production)
 - [x] Fix: STRIPE_PRICE_BASIC missing in production — secrets confirmed set; added startup validateEnv() log; republish required to inject into production
+
+## Subscription Downgrade Safety
+- [x] Remove requireTier(basic) from plans.save so downgraded users can still save existing plans
+- [x] Add getUserByStripeCustomerId DB helper
+- [x] Webhook: fall back to stripeCustomerId lookup when user_id metadata is missing
+- [x] Plans page: show over-limit banner when planCount > tier.limits.plans
+- [x] Auto-save: saves to existing plans always allowed; new plan creation blocked at over-limit (banner explains)

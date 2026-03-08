@@ -9,6 +9,27 @@ import express from "express";
 import * as db from "./db";
 import { getProductByTier } from "./products";
 
+/** Resolve a DB user ID from Stripe event metadata, falling back to customer ID lookup. */
+async function resolveUserId(
+  metadataUserId: string | undefined,
+  stripeCustomerId: string | undefined
+): Promise<number> {
+  // Primary: user_id stored in metadata at checkout time
+  const fromMeta = parseInt(metadataUserId ?? "0", 10);
+  if (fromMeta > 0) return fromMeta;
+
+  // Fallback: look up by stripeCustomerId (handles pre-metadata subs or metadata loss)
+  if (stripeCustomerId) {
+    const user = await db.getUserByStripeCustomerId(stripeCustomerId);
+    if (user) {
+      console.log(`[Webhook] Resolved user ${user.id} via stripeCustomerId ${stripeCustomerId}`);
+      return user.id;
+    }
+  }
+
+  return 0;
+}
+
 // ── Stripe client ─────────────────────────────────────────────────────────────
 
 function getStripe(): Stripe {
@@ -86,10 +107,13 @@ export function registerStripeWebhook(app: Express) {
 // ── Webhook handlers ──────────────────────────────────────────────────────────
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const userId = parseInt(session.metadata?.user_id ?? "0", 10);
+  const userId = await resolveUserId(
+    session.metadata?.user_id,
+    session.customer as string | undefined
+  );
   const tier = session.metadata?.tier as "basic" | "pro" | undefined;
   if (!userId || !tier) {
-    console.warn("[Webhook] Missing user_id or tier in session metadata");
+    console.warn("[Webhook] Could not resolve user_id or tier for checkout session", session.id);
     return;
   }
 
@@ -112,8 +136,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleSubscriptionChange(sub: Stripe.Subscription) {
-  const userId = parseInt(sub.metadata?.user_id ?? "0", 10);
-  if (!userId) return;
+  const userId = await resolveUserId(
+    sub.metadata?.user_id,
+    sub.customer as string | undefined
+  );
+  if (!userId) {
+    console.warn("[Webhook] Could not resolve user for subscription", sub.id);
+    return;
+  }
 
   const isActive = sub.status === "active" || sub.status === "trialing";
   const tier = isActive ? (sub.metadata?.tier as "basic" | "pro" | undefined) : undefined;
