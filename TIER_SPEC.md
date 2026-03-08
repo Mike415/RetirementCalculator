@@ -109,7 +109,8 @@ When locked, renders a styled lock badge + tooltip/popover with the upgrade CTA.
 ### 6. Server-side enforcement (`server/routers.ts`)
 - `plans.create` — already checks plan limit; update to use `TIER_LIMITS`
 - `plans.save` — already requires `basic`+; keep
-- Add `plans.exportPdf` procedure — check `TIER_FEATURES[tier].pdfExport`
+- Add `plans.exportPdfSummary` procedure — check tier is Basic+ (`TIER_FEATURES[tier].pdfExport`)
+- Add `plans.exportPdfTable` procedure — check tier is Pro only
 - Roth optimizer and Monte Carlo run client-side (no server call needed) — gate in UI only
 
 ### 7. Billing page update (`client/src/pages/Billing.tsx`)

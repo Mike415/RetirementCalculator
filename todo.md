@@ -158,3 +158,17 @@
 - [ ] Confirm: PDF export — single-page summary or multi-page full report?
 - [ ] Confirm: Partner/spouse — is partnerEnabled UI already built or needs work?
 - [ ] Confirm: Roth optimizer + Monte Carlo — already implemented (just needs ungating) or needs to be built?
+
+## PDF Export (Basic: Summary | Pro: Summary + Data Table)
+
+### One-page Executive Summary PDF (Basic+)
+- [ ] Install @react-pdf/renderer or pdfmake for PDF generation
+- [ ] Build PDF summary template: plan name, export date, key inputs, net worth chart (as image), headline numbers
+- [ ] Add tRPC procedure plans.exportPdfSummary (Basic+ tier check)
+- [ ] Add "Export Summary PDF" button in sidebar Account section (Basic+ TierGate)
+
+### Year-by-year Data Table PDF (Pro only)
+- [ ] Build PDF data table template: one row per year (age, net worth, income, expenses, taxes, account balances)
+- [ ] Add tRPC procedure plans.exportPdfTable (Pro tier check)
+- [ ] Add "Export Full Report PDF" button alongside summary export (Pro TierGate)
+- [ ] Optionally add CSV export of the same data table (Pro only)
