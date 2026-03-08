@@ -189,7 +189,7 @@ export default function Billing() {
         origin: window.location.origin,
       });
       toast.info("Redirecting to checkout…");
-      window.open(url, "_blank");
+      window.location.href = url;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to start checkout";
       toast.error(msg);
@@ -204,7 +204,7 @@ export default function Billing() {
       const { url } = await createPortal.mutateAsync({
         origin: window.location.origin,
       });
-      window.open(url, "_blank");
+      window.location.href = url;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to open billing portal";
       toast.error(msg);

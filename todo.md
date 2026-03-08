@@ -206,3 +206,6 @@
 - [x] Webhook: fall back to stripeCustomerId lookup when user_id metadata is missing
 - [x] Plans page: show over-limit banner when planCount > tier.limits.plans
 - [x] Auto-save: saves to existing plans always allowed; new plan creation blocked at over-limit (banner explains)
+
+## UX Improvements
+- [x] Stripe checkout: open in same tab (window.location.href) instead of new window
