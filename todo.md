@@ -182,3 +182,6 @@
 - [ ] Register Stripe webhook in Dashboard pointing to production /api/stripe/webhook
 - [ ] Add "Manage Subscription" button to Billing page (opens Stripe Customer Portal)
 - [ ] Verify Customer Portal is enabled in Stripe Dashboard settings
+
+## Navigation
+- [x] Add Billing link to sidebar navigation (signed-in users only)

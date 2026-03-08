@@ -19,6 +19,7 @@ import {
   BookOpen,
   Briefcase,
   CalendarClock,
+  CreditCard,
   DollarSign,
   Download,
   FolderOpen,
@@ -78,8 +79,9 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Account",
     items: [
-      { path: "/plans", label: "My Plans",       icon: FolderOpen },
-      { path: "/faq",   label: "FAQ",            icon: HelpCircle },
+      { path: "/plans",   label: "My Plans",       icon: FolderOpen  },
+      { path: "/faq",     label: "FAQ",            icon: HelpCircle  },
+      { path: "/billing", label: "Billing & Plans", icon: CreditCard  },
     ],
   },
 ];
