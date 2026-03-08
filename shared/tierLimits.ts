@@ -3,10 +3,33 @@
  * Single source of truth — used by both client and server.
  *
  * Tiers: signedOut | free | basic | pro
- * During beta, all registered users are given "pro" access by default.
+ *
+ * Beta policy:
+ *   - New signups receive the "free" tier so billing data is accurate.
+ *   - BETA_FEATURES_UNLOCKED = true grants free-tier users full Pro feature
+ *     access during the beta period without changing their stored tier.
+ *   - When beta ends, set BETA_FEATURES_UNLOCKED = false — existing free users
+ *     will revert to free limits with no DB migration required.
  */
 
 export type Tier = "signedOut" | "free" | "basic" | "pro";
+
+/**
+ * Master beta switch.
+ * true  → free-tier users enjoy all Pro features (limits + boolean flags).
+ * false → normal tier enforcement.
+ */
+export const BETA_FEATURES_UNLOCKED = true;
+
+/**
+ * Returns the effective tier to use for feature/limit lookups.
+ * During beta, free users are treated as pro for access purposes only;
+ * their stored planTier remains "free".
+ */
+export function betaEffectiveTier(storedTier: Tier): Tier {
+  if (BETA_FEATURES_UNLOCKED && storedTier === "free") return "pro";
+  return storedTier;
+}
 
 /** Numeric limits per tier */
 export const TIER_LIMITS = {

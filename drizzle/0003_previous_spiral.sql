@@ -1,0 +1,1 @@
+ALTER TABLE `users` MODIFY COLUMN `planTier` enum('free','basic','pro') NOT NULL DEFAULT 'free';

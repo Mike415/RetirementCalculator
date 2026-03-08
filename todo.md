@@ -185,3 +185,11 @@
 
 ## Navigation
 - [x] Add Billing link to sidebar navigation (signed-in users only)
+
+## Beta Tier Redesign
+- [x] New signups default to free tier (not pro)
+- [x] Add BETA_FEATURES_UNLOCKED flag: free tier gets all Pro features during beta
+- [x] useTierLimits: when beta flag is on, treat free tier as pro for feature access
+- [x] Server: update user provisioning default from "pro" to "free"
+- [x] Sidebar: update beta badge to reflect "Beta — All features unlocked" (not "Pro features")
+- [x] Migrate existing beta-pro users back to free tier (or leave as-is if already paying)

@@ -49,13 +49,14 @@ export async function createContext(
           const email = clerkUser.emailAddresses[0]?.emailAddress ?? null;
           const name =
             [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null;
-          // Beta phase: all new users get Pro tier automatically
+          // New users start on free tier; beta feature access is controlled
+          // by BETA_FEATURES_UNLOCKED in shared/tierLimits.ts (no DB change needed).
           await db.upsertUser({
             openId: clerkUserId,
             name,
             email,
             loginMethod: "clerk",
-            planTier: "pro",
+            planTier: "free",
             lastSignedIn: new Date(),
           });
           user = (await db.getUserByOpenId(clerkUserId)) ?? null;

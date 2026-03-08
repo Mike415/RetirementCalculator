@@ -328,7 +328,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D97706]/15 border border-[#D97706]/25">
           <Sparkles className="w-3 h-3 text-[#D97706] flex-shrink-0" />
           <span className="text-[10px] font-semibold text-[#D97706]/90 leading-tight">
-            Beta — Pro features unlocked
+            Beta — All features unlocked
           </span>
         </div>
       </div>

@@ -20,8 +20,9 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   /** Subscription tier: free | basic | pro */
-  // NOTE: Default is "pro" during the open beta phase — all new users get full access.
-  planTier: mysqlEnum("planTier", ["free", "basic", "pro"]).default("pro").notNull(),
+  // Default is "free"; beta feature access is controlled by BETA_FEATURES_UNLOCKED
+  // in shared/tierLimits.ts — no DB change needed to end the beta.
+  planTier: mysqlEnum("planTier", ["free", "basic", "pro"]).default("free").notNull(),
   stripeCustomerId: varchar("stripeCustomerId", { length: 255 }),
   stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 255 }),
   subscriptionEndsAt: timestamp("subscriptionEndsAt"),

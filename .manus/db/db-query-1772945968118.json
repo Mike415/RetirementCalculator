@@ -1,0 +1,14 @@
+{
+  "query": "SELECT planTier, COUNT(*) as count FROM users GROUP BY planTier;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3KN2LnNHTEDqEyj.314e7b3ea523 --database GenHb4QZTAGMkdmFbXCBeo --execute SELECT planTier, COUNT(*) as count FROM users GROUP BY planTier;",
+  "rows": [
+    {
+      "planTier": "pro",
+      "count": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "planTier\tcount\npro\t1\n",
+  "stderr": "",
+  "execution_time_ms": 98
+}
