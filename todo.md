@@ -73,3 +73,4 @@
 - [x] Fix: auto-save fires before cloud plan is loaded, overwriting cloud data with local placeholder
 - [x] Roll back bad cloud data saved by auto-save on login (fixed at source, no rollback needed)
 - [x] Add www.project-retire.com redirect via Cloudflare (301 redirect to project-retire.com)
+- [x] Sidebar dropdown: add Sign Out button at the bottom

@@ -13,7 +13,7 @@
 import CloudSync from "@/components/CloudSync";
 import { usePlanner } from "@/contexts/PlannerContext";
 import { cn } from "@/lib/utils";
-import { SignInButton, UserButton, useUser } from "@clerk/react";
+import { SignInButton, UserButton, useClerk, useUser } from "@clerk/react";
 import {
   BarChart3,
   BookOpen,
@@ -27,6 +27,7 @@ import {
   Home,
   Layers,
   LogIn,
+  LogOut,
   PiggyBank,
   RotateCcw,
   Settings2,
@@ -88,6 +89,7 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
   const [confirming, setConfirming] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isSignedIn, isLoaded, user } = useUser();
+  const { signOut } = useClerk();
 
   // Auto-open dropdown for signed-out users on first visit
   const hasSeenDropdown = useRef(
@@ -268,6 +270,15 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
                 >
                   <RotateCcw className="w-3 h-3 flex-shrink-0" />
                   {confirming ? "Click again to confirm" : "Reset to defaults"}
+                </button>
+
+                {/* Sign Out */}
+                <button
+                  onClick={() => signOut()}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white/40 border border-white/10 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/20 transition-all duration-150"
+                >
+                  <LogOut className="w-3 h-3 flex-shrink-0" />
+                  Sign out
                 </button>
               </div>
             </div>
