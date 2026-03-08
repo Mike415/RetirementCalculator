@@ -23,7 +23,9 @@ import {
   CreditCard,
   DollarSign,
   Download,
+  FolderOpen,
   GitCompare,
+  HelpCircle,
   Home,
   Layers,
   LogIn,
@@ -61,8 +63,15 @@ const NAV_SECTIONS: NavSection[] = [
       { path: "/distribution",  label: "Distribution Mgr",  icon: Layers     },
     ],
   },
-  // Billing & Plans hidden during beta — re-add when Stripe is live
-  // { title: "Account", items: [{ path: "/billing", label: "Billing & Plans", icon: CreditCard }] },
+  {
+    title: "Account",
+    items: [
+      { path: "/plans", label: "My Plans", icon: FolderOpen },
+      { path: "/faq",   label: "FAQ",      icon: HelpCircle },
+      // Billing & Plans hidden during beta — re-add when Stripe is live
+      // { path: "/billing", label: "Billing & Plans", icon: CreditCard },
+    ],
+  },
   {
     title: "Inputs",
     items: [
@@ -165,9 +174,11 @@ export default function Sidebar({ className, onNavigate }: SidebarProps) {
       {/* ── Brand ─────────────────────────────────────────────────────────── */}
       <div className="px-6 py-5 border-b border-white/10">
         <Link href="/overview" onClick={onNavigate} className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#D97706] flex items-center justify-center flex-shrink-0">
-            <TrendingUp className="w-4 h-4 text-white" />
-          </div>
+          <img
+            src="https://d2xsxph8kpxj0f.cloudfront.net/310519663317271153/GenHb4QZTAGMkdmFbXCBeo/pr-logo-orange-2k7HDSrZFY7bSQGeDyDy2Z.webp"
+            alt="Project Retire logo"
+            className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
+          />
           <h1 className="font-bold text-sm leading-tight tracking-wide text-white">
             Project Retire
           </h1>

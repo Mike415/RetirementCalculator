@@ -26,6 +26,8 @@ import OneTimeEvents from "./pages/OneTimeEvents";
 import Scenarios from "./pages/Scenarios";
 import Distribution from "./pages/Distribution";
 import Billing from "./pages/Billing";
+import FAQ from "./pages/FAQ";
+import Plans from "./pages/Plans";
 import NotFound from "./pages/NotFound";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -90,6 +92,8 @@ function PlannerApp() {
               <Route path="/distribution" component={Distribution} />
               <Route path="/projections" component={Projections} />
               <Route path="/billing" component={Billing} />
+              <Route path="/faq" component={FAQ} />
+              <Route path="/plans" component={Plans} />
               <Route component={NotFound} />
             </Switch>
           </div>

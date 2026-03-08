@@ -74,3 +74,13 @@
 - [x] Roll back bad cloud data saved by auto-save on login (fixed at source, no rollback needed)
 - [x] Add www.project-retire.com redirect via Cloudflare (301 redirect to project-retire.com)
 - [x] Sidebar dropdown: add Sign Out button at the bottom
+
+## Branding & UX Improvements
+- [x] Update sidebar logo to use the PR arrow favicon image (orange)
+- [x] Add FAQ page with retirement planning Q&A content
+- [x] Add FAQ link in sidebar under Account section
+- [x] Flesh out Plans management UI (list, rename, delete, create new)
+- [x] Improve cloud load-on-login UX (better modal, preview plan details before loading)
+- [x] SEO: add meta description, Open Graph tags, Twitter card, canonical URL
+- [x] SEO: add structured data (JSON-LD) for the app
+- [x] SEO: add robots.txt and sitemap.xml

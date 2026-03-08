@@ -1,0 +1,21 @@
+{
+  "name": "Project Retire",
+  "short_name": "Project Retire",
+  "description": "A free, tax-aware retirement planning tool. Model your net worth year-by-year.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAFAF8",
+  "theme_color": "#1B4332",
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
